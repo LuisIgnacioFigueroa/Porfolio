@@ -1,0 +1,1378 @@
+---
+title: 'Caracterización gráfica de datos clínico-genómicos en cáncer de mama'
+author: "Luis Ignacio Figueroa Gómez"
+date: "2026-04-11"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+<style>
+p {
+  text-align: justify;
+}
+</style>
+
+---
+
+## Contexto de la actividad:
+En esta actividad vamos a analizar un dataset de 65 pacientes con cáncer de mama. En el dataset encontraremos variables clínicas, parámetros bioquímicos y de expresión génica.
+Así, el objetivo es representar de manera gráfica los datos y dar una interpretación biológica de los resultados.
+
+
+## Preparación del entorno:
+Una vez realizada la limpieza del entorno con (rm(list = ls())), se estableció el directorio de trabajo, y se visualizaron los documentos encontrados en él.
+
+```{r setup, results='show'}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE,  message = FALSE, include = TRUE)
+list.files()
+```
+
+Dado el objetivo planteado, se requirió cargar las siguientes librerías.
+
+```{r librerias, results='hide'}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+library(moments)
+library(patchwork)
+library(ComplexHeatmap)
+library(circlize)
+```
+
+## Carga y revisión de datos:
+Se modificó el nombre del archivo original a uno más breve, y se cargó el archivo designado para el trabajo. Se exploró la estructura del dataset mediante str(), ocultando su salida por motivos de presentación, y se visualizaron los nombres de las columnas
+
+```{r df_genes}
+df_genes <- read.csv("MUBioinfo_dataset_genes_oct2025.csv")
+```
+
+```{r, results='hide'}
+str(df_genes)
+```
+
+```{r names}
+names(df_genes)
+```
+
+Como se se nos solicitó evaluar la expresión de diez genes inicialmente (AQ_ESR1, AQ_HER2, AQ_BRCA1, AQ_BRCA2, AQ_MKI67, AQ_GATA3, AQ_FOXA1, AQ_CCND1, AQ_CDH1, AQ_TP53), confirmamos directamente mediante comandos su existencia en el dataframe.
+
+```{r busqueda_genes}
+all(c("tratamiento", "AQ_esr1", "AQ_her2", "AQ_brca1", "AQ_brca2", "AQ_mki67", "AQ_gata3", "AQ_foxa1", "AQ_ccnd1", "AQ_cdh1", "AQ_tp53") %in% names(df_genes))
+```
+
+---
+
+
+## Representación gráfica para la evaluación de expresión génica
+
+Puesto que se evaluó y confirmó todos los datos requeridos para trabajar los datos, se elaboraron los gráficos box plot. En esta primera etapa, se propuso un gráfico de dos cajas, tratamiento farmacológico y tratamiento placebo, por cada gen.
+
+Dada su extensión, el código utilizado para la creación de cada box plot se encuentra en el **Anexo 1**.
+
+```{r gen_graphs, echo=FALSE}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_esr1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_esr1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_esr1 <- as.numeric(df_box$AQ_esr1)
+df_box <- df_box %>% filter(!is.na(AQ_esr1))
+
+if (nrow(df_box) > 0) {
+    p_box_esr1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_esr1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de ESR1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion ESR1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_her2) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_her2))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_her2 <- as.numeric(df_box$AQ_her2)
+df_box <- df_box %>% filter(!is.na(AQ_her2))
+
+if (nrow(df_box) > 0) {
+  p_box_her2 <- ggplot(df_box, aes(x = tratamiento, y = AQ_her2, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de HER2 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion HER2") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_brca1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_brca1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_brca1 <- as.numeric(df_box$AQ_brca1)
+df_box <- df_box %>% filter(!is.na(AQ_brca1))
+
+if (nrow(df_box) > 0) {
+  p_box_brca1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_brca1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de BRCA1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion BRCA1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_brca2) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_brca2))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_brca2 <- as.numeric(df_box$AQ_brca2)
+df_box <- df_box %>% filter(!is.na(AQ_brca2))
+
+if (nrow(df_box) > 0) {
+  p_box_brca2 <- ggplot(df_box, aes(x = tratamiento, y = AQ_brca2, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de BRCA2 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion BRCA2") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_mki67) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_mki67))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_mki67 <- as.numeric(df_box$AQ_mki67)
+df_box <- df_box %>% filter(!is.na(AQ_mki67))
+
+if (nrow(df_box) > 0) {
+  p_box_mki67 <- ggplot(df_box, aes(x = tratamiento, y = AQ_mki67, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de MKI67 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion MKI67") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_gata3) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_gata3))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_gata3 <- as.numeric(df_box$AQ_gata3)
+df_box <- df_box %>% filter(!is.na(AQ_gata3))
+
+if (nrow(df_box) > 0) {
+  p_box_gata3 <- ggplot(df_box, aes(x = tratamiento, y = AQ_gata3, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de GATA3 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion GATA3") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_foxa1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_foxa1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_foxa1 <- as.numeric(df_box$AQ_foxa1)
+df_box <- df_box %>% filter(!is.na(AQ_foxa1))
+
+if (nrow(df_box) > 0) {
+  p_box_foxa1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_foxa1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de FOXA1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion FOXA1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_ccnd1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_ccnd1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_ccnd1 <- as.numeric(df_box$AQ_ccnd1)
+df_box <- df_box %>% filter(!is.na(AQ_ccnd1))
+
+if (nrow(df_box) > 0) {
+  p_box_ccnd1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_ccnd1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de CCND1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion CCND1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_cdh1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_cdh1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_cdh1 <- as.numeric(df_box$AQ_cdh1)
+df_box <- df_box %>% filter(!is.na(AQ_cdh1))
+
+if (nrow(df_box) > 0) {
+  p_box_cdh1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_cdh1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de CDH1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion CDH1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_tp53) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_tp53))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_tp53 <- as.numeric(df_box$AQ_tp53)
+df_box <- df_box %>% filter(!is.na(AQ_tp53))
+
+if (nrow(df_box) > 0) {
+  p_box_tp53 <- ggplot(df_box, aes(x = tratamiento, y = AQ_tp53, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de TP53 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion TP53") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+```
+
+Finalizada la elaboración de los gráficos de cada expresión génica, se integró en una única figura todo el conjunto de gráficos anteriores, con ayuda de las funciones de la librería patchwork cargada al inicio,
+
+```{r gen_combinado}
+combined_plot0 <- p_box_esr1 + p_box_her2 + p_box_brca1 +
+  p_box_brca2 + p_box_mki67 + p_box_gata3 +
+  p_box_foxa1 + p_box_ccnd1 + p_box_cdh1 +
+  p_box_tp53 +
+  plot_layout(ncol = 2)
+```
+
+Finalmente, se realizaron los ajustes de anchura, altura y número de columnas, dando origen a la **Figura 1**
+```{r fig.width=8, fig.height=14, fig.align="center"}
+combined_plot0 + plot_annotation(
+  title = "Evaluación de la expresión génica en los grupos con tratamiento farmacológico y placebo",
+  theme = theme(plot.title = element_text(hjust = 0.5))
+)
+```
+**Figura 1:** De acuerdo al conjunto de datos presentados mediante boxplots, el caso de estudio sugiere que el tratamiento farmacológico se asocia con una disminución marcada y consistente en la expresión de los diez genes analizados. En todos los casos, el grupo tratado presenta valores de expresión cercanos a cero y una baja variabilidad, mientras que el grupo placebo muestra niveles de expresión elevados y una mayor dispersión de los datos. La clara separación entre las medianas y la ausencia de solapamiento entre los rangos intercuartílicos sugieren un efecto robusto del tratamiento, indicando una posible acción inhibitoria del fármaco sobre la expresión génica en este contexto biológico.
+
+### Análisis de la Figura 1:
+
+Los resultados muestran un patrón consistente de disminución en la expresión génica en el grupo tratado, lo que permite realizar una interpretación funcional del impacto del fármaco sobre distintas vías celulares.
+
+Según los datos consultados en UniProt, los genes analizados participan en procesos clave de la biología tumoral. ESR1 y HER2 están implicados en la señalización del crecimiento celular; en ambos casos, la disminución de su expresión sugiere una reducción de la proliferación tumoral, lo que podría considerarse un efecto beneficioso. De manera similar, MKI67 y CCND1 actúan como marcadores y reguladores del ciclo celular, por lo que su disminución indica una inhibición directa de la división celular, reforzando el posible efecto terapéutico del tratamiento.
+
+En contraste, BRCA1 y BRCA2 desempeñan funciones esenciales en la reparación del ADN; su disminución podría comprometer la capacidad de las células para corregir el daño genético, favoreciendo la acumulación de mutaciones, lo que constituye un efecto potencialmente perjudicial. En la misma línea, TP53 actúa como un supresor tumoral clave, y su reducción podría disminuir la capacidad de inducir apoptosis o detener el ciclo celular ante daño, lo que también resulta desfavorable. Por otro lado, CDH1 participa en la adhesión celular y en la supresión de la invasión tumoral; su disminución podría facilitar la diseminación celular, incrementando el potencial invasivo tumoral.
+
+Finalmente, GATA3 y FOXA1 intervienen en la regulación de la expresión génica y en la diferenciación celular, desempeñando un papel relevante en el mantenimiento de programas transcripcionales específicos de ciertos tipos celulares, particularmente en tumores hormonodependientes. En este contexto, la disminución de su expresión podría tener un impacto biológico más complejo: por un lado, podría contribuir a reducir la actividad transcripcional asociada al crecimiento tumoral; sin embargo, también podría favorecer la pérdida de diferenciación celular y la desorganización de los programas génicos, lo que en determinados contextos se asocia a fenotipos más agresivos. Por tanto, el efecto de su inhibición no es claramente beneficioso ni perjudicial, sino dependiente del equilibrio entre la supresión de la proliferación y la posible inducción de estados celulares menos diferenciados.
+
+En conjunto, los resultados obtenidos indican que el tratamiento farmacológico se asocia con una disminución global de la expresión génica en todos los genes analizados, lo que sugiere un efecto amplio sobre múltiples vías celulares implicadas en la biología tumoral. Esta reducción afecta tanto a genes directamente relacionados con la proliferación celular, cuya inhibición podría interpretarse como beneficiosa, como a genes clave en la reparación del ADN, el control del daño celular y la adhesión tisular, cuya disminución podría resultar perjudicial. Asimismo, la alteración en la expresión de factores reguladores como GATA3 y FOXA1 sugiere un impacto adicional sobre la organización de los programas transcripcionales y el estado de diferenciación celular.
+
+En este contexto, los datos apuntan a un efecto global pero poco selectivo del fármaco, que no se limita a la inhibición de la proliferación tumoral, sino que también podría interferir con mecanismos esenciales de mantenimiento y control celular. Por tanto, aunque el tratamiento muestra un potencial efecto antiproliferativo, su impacto biológico debe interpretarse con cautela, ya que la inhibición simultánea de vías protectoras podría generar consecuencias adversas a nivel celular. Estos resultados ponen de manifiesto la importancia de evaluar no solo la magnitud del efecto farmacológico, sino también su especificidad sobre las distintas funciones celulares implicadas en la progresión tumoral.
+
+---
+
+## Representación gráfica para la evaluación de distribución de los parámetros bioquímicos
+Para abordar la segunda tarea del trabajo, se analizó la presencia de los dieciseis parámetros bioquímicos ("glucosa", "leucocitos", "linfocitos", "neutrofilos", "chol", "hdl", "hierro", "iga", "ige", "igg", "ign", "ldl", "pcr", "transferrina", "trigliceridos", "cpk"), por lo que confirmamos mediante comandos su existencia en el dataframe. 
+
+```{r busqueda_parametros_bq}
+all(c("tratamiento", "glucosa", "leucocitos", "linfocitos", "neutrofilos", "chol", "hdl", "hierro", "iga", "ige", "igg", "ign", "ldl", "pcr", "transferrina", "trigliceridos", "cpk") %in% names(df_genes))
+```
+
+Puesto que se evaluó y confirmó todos los datos requeridos para trabajar los datos, se procedió a elaborar los histogramaspor cada parámetro bioquímico a evaliar.
+
+Dada la extensión del código utilizado para la creación de los histogramas, se han derivado al **Anexo 2**:
+
+```{r parametros_bq_hist, echo=FALSE}
+{df_hist_glu <- df_genes %>%
+  select(glucosa) %>%
+  filter(!is.na(glucosa))
+
+if (nrow(df_hist_glu) > 0) {
+  p_hist_glu <- ggplot(df_hist_glu, aes(x = glucosa)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Glucosa",
+      subtitle = "",
+      x = "Glucosa (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_leu <- df_genes %>%
+  select(leucocitos) %>%
+  filter(!is.na(leucocitos))
+
+if (nrow(df_hist_leu) > 0) {
+  p_hist_leu <- ggplot(df_hist_leu, aes(x = leucocitos)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Leucocitos",
+      subtitle = "",
+      x = expression("Leucocitos ("*10^3*" células/µL)"),
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_lin <- df_genes %>%
+  select(linfocitos) %>%
+  filter(!is.na(linfocitos))
+
+if (nrow(df_hist_lin) > 0) {
+  p_hist_lin <- ggplot(df_hist_lin, aes(x = linfocitos)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Linfocitos",
+      subtitle = "",
+      x = expression("Linfocitos ("*10^3*" células/µL)"),
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_neu <- df_genes %>%
+  select(neutrofilos) %>%
+  filter(!is.na(neutrofilos))
+
+if (nrow(df_hist_neu) > 0) {
+  p_hist_neu <- ggplot(df_hist_neu, aes(x = neutrofilos)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Neutrófilos",
+      subtitle = "",
+      x = expression("Neutrófilos ("*10^3*" células/µL)"),
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_chol <- df_genes %>%
+  select(chol) %>%
+  filter(!is.na(chol))
+
+if (nrow(df_hist_chol) > 0) {
+  p_hist_chol <- ggplot(df_hist_chol, aes(x = chol)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Colesterol",
+      subtitle = "",
+      x = "Colesterol (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_hdl <- df_genes %>%
+  select(hdl) %>%
+  filter(!is.na(hdl))
+
+if (nrow(df_hist_hdl) > 0) {
+  p_hist_hdl <- ggplot(df_hist_hdl, aes(x = hdl)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "HDL",
+      subtitle = "",
+      x = "HDL (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_fe <- df_genes %>%
+  select(hierro) %>%
+  filter(!is.na(hierro))
+
+if (nrow(df_hist_fe) > 0) {
+  p_hist_fe <- ggplot(df_hist_fe, aes(x = hierro)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Hierro",
+      subtitle = "",
+      x = "Hierro (µg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_iga <- df_genes %>%
+  select(iga) %>%
+  filter(!is.na(iga))
+
+if (nrow(df_hist_iga) > 0) {
+  p_hist_iga <- ggplot(df_hist_iga, aes(x = iga)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "IgA",
+      subtitle = "",
+      x = "IgA (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_ige <- df_genes %>%
+  select(ige) %>%
+  filter(!is.na(ige))
+
+if (nrow(df_hist_ige) > 0) {
+  p_hist_ige <- ggplot(df_hist_ige, aes(x = ige)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "IgE",
+      subtitle = "",
+      x = "IgE (UI/mL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_igg <- df_genes %>%
+  select(igg) %>%
+  filter(!is.na(igg))
+
+if (nrow(df_hist_igg) > 0) {
+  p_hist_igg <- ggplot(df_hist_igg, aes(x = igg)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "IgG",
+      subtitle = "",
+      x = "IgG (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_ign <- df_genes %>%
+  select(ign) %>%
+  filter(!is.na(ign))
+
+if (nrow(df_hist_ign) > 0) {
+  p_hist_ign <- ggplot(df_hist_ign, aes(x = ign)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "IgN",
+      subtitle = "",
+      x = "IgN (UI/mL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_ldl <- df_genes %>%
+  select(ldl) %>%
+  filter(!is.na(ldl))
+
+if (nrow(df_hist_ldl) > 0) {
+  p_hist_ldl <- ggplot(df_hist_ldl, aes(x = ldl)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "LDL",
+      subtitle = "",
+      x = "LDL (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_pcr <- df_genes %>%
+  select(pcr) %>%
+  filter(!is.na(pcr))
+
+if (nrow(df_hist_pcr) > 0) {
+  p_hist_pcr <- ggplot(df_hist_pcr, aes(x = pcr)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Proteína C reactiva",
+      subtitle = "",
+      x = "PCR (mg/L)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_tra <- df_genes %>%
+  select(transferrina) %>%
+  filter(!is.na(transferrina))
+
+if (nrow(df_hist_tra) > 0) {
+  p_hist_tra <- ggplot(df_hist_tra, aes(x = transferrina)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Transferrina",
+      subtitle = "",
+      x = "Transferrina (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_tri <- df_genes %>%
+  select(trigliceridos) %>%
+  filter(!is.na(trigliceridos))
+
+if (nrow(df_hist_tri) > 0) {
+  p_hist_tri <- ggplot(df_hist_tri, aes(x = trigliceridos)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Triglicéridos",
+      subtitle = "",
+      x = "Triglicéridos (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_cpk <- df_genes %>%
+  select(cpk) %>%
+  filter(!is.na(cpk))
+
+if (nrow(df_hist_cpk) > 0) {
+  p_hist_cpk <- ggplot(df_hist_cpk, aes(x = cpk)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Creatina fosfoquinasa",
+      subtitle = "",
+      x = "CPK (U/L)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+}
+```
+
+Finalizada la elaboración de los histogramas de cada parámetro, se integró en una única figura el total del conjunto, con ayuda de las funciones de la librería patchwork cargada al inicio,
+
+```{r his_combinado}
+combined_his0 <- p_hist_glu + p_hist_chol + p_hist_hdl + p_hist_ldl + p_hist_tri + 
+  p_hist_leu + p_hist_lin + p_hist_neu +
+  p_hist_iga + p_hist_ige +  p_hist_igg + p_hist_ign +
+  p_hist_pcr + p_hist_cpk + p_hist_fe + p_hist_tra +
+  plot_layout(ncol = 4)
+```
+
+Finalmente, se realizaron los ajustes de anchura, altura y número de columnas, dando origen a la **Figura 2**
+```{r fig.width=10, fig.height=10, fig.align="center"}
+combined_his0 + plot_annotation(
+  title = "Patrones de distribución de parámetros bioquímicos en la población estudiada",
+  theme = theme(plot.title = element_text(hjust = 0.5))
+)
+```
+**Figura 2:** Histogramas de densidad de los parámetros bioquímicos evaluados en la cohorte de pacientes con cáncer de mama. Las distribuciones evidencian una predominancia de asimetría positiva en múltiples variables, así como diferencias en la dispersión y concentración de los datos entre parámetros. Se observan patrones contrastantes entre variables con mayor variabilidad y presencia de valores extremos (como PCR, triglicéridos, LDL y CPK) y aquellas con distribuciones más concentradas y próximas a la simetría (como transferrina, linfocitos y colesterol total). Estos resultados reflejan la heterogeneidad global de la población estudiada.
+
+### Análisis de la Figura 2:
+
+El análisis de la distribución de los parámetros bioquímicos en una cohorte de 65 pacientes con cáncer de mama, divididos en un grupo con tratamiento farmacológico y un grupo control con placebo, revela una marcada heterogeneidad, reflejando la complejidad biológica de la población estudiada. En términos generales, la mayoría de las variables presenta asimetría positiva, con concentración de valores en rangos bajos o intermedios y colas hacia valores elevados. Este patrón se observa en parámetros como la glucosa, los triglicéridos, el LDL, los leucocitos, los neutrófilos, la IgE, la proteína C reactiva (PCR), la creatina fosfoquinasa (CPK), así como en las inmunoglobulinas IgA e IgN; el hierro también muestra una asimetría positiva moderada, con un comportamiento similar al de IgA.
+
+Desde una perspectiva clínica, este patrón sugiere la coexistencia de pacientes con perfiles bioquímicos estables junto a otros con alteraciones metabólicas, inflamatorias o inmunológicas más pronunciadas, posiblemente asociadas a la progresión tumoral o a la respuesta al tratamiento. En particular, la PCR y la IgE destacan por su concentración en valores bajos y colas muy prolongadas hacia valores elevados, lo que indica estados inflamatorios o inmunológicos intensificados en un subgrupo de pacientes.
+
+Por otro lado, algunas variables muestran distribuciones más equilibradas. La transferrina, los linfocitos y el colesterol total presentan una dispersión relativamente homogénea con ligera asimetría positiva, lo que sugiere un mayor control homeostático. De forma similar, la IgG exhibe una distribución estable con leve desviación.
+
+En el perfil lipídico, el colesterol total muestra una ligera asimetría positiva, mientras que el HDL presenta una distribución moderadamente asimétrica con una leve extensión hacia valores elevados. En contraste, el LDL y los triglicéridos exhiben asimetrías más marcadas, comportamiento que también comparten la IgA, la IgN y, en menor medida, el hierro, lo que refleja una mayor variabilidad interindividual y sensibilidad a procesos fisiopatológicos.
+
+En cuanto a la dispersión, algunas variables presentan distribuciones más compactas, como la transferrina, los linfocitos y el colesterol total, mientras que otras, como la CPK, los triglicéridos, el LDL y la PCR, muestran una mayor amplitud, lo que sugiere distintos niveles de regulación biológica.
+
+Respecto a la normalidad, la mayoría de las variables no sigue una distribución gaussiana, predominando formas asimétricas con valores extremos. No obstante, la transferrina, los linfocitos y el colesterol total se aproximan a una distribución simétrica tipo campana de Gauss. En contraste, la PCR y la IgE constituyen ejemplos claros de no normalidad, mientras que los triglicéridos, el LDL, la CPK, los leucocitos, así como la IgA, la IgN y el hierro, presentan asimetrías positivas de distinta magnitud.
+
+En conjunto, estos resultados evidencian una distribución bioquímica compleja, influida tanto por la enfermedad como por la intervención terapéutica.Cabe destacar que el presente análisis se realizó sobre la población total sin estratificación por grupo de tratamiento, por lo que las interpretaciones corresponden al comportamiento global de las variables y no permiten inferir efectos diferenciales entre el tratamiento farmacológico y el grupo control.
+
+---
+
+## Representación gráfica para la evaluación de expresión génica
+Puesto que se evaluó y confirmó todos los datos requeridos para trabajar los datos, se procedió a elaborar mapas de calor. En esta tercera etapa, se propuso diseñar el mapa con los pacientes (ID) en las filas y la expresión de cada gen ("AQ_") en las columnas. Luego de un mapeo inicial, se decidió incorporar 4 clusters de análisis para 3 grupos de genes. Los códigos fueron:
+
+```{r Heatmap raw, fig.width=12, fig.height=12, fig.align="center"}
+aq_data <- df_genes[, grep("AQ", colnames(df_genes))]
+mat <- as.matrix(aq_data)
+rownames(mat) <- df_genes$id
+
+
+
+heat_anot <- rowAnnotation(
+  Tratamiento = df_genes$tratamiento,
+  col = list(Tratamiento = c("farmaco" = "steelblue", "placebo" = "indianred"))
+)
+
+rng <- range(mat, na.rm = TRUE)
+mid <- median(mat, na.rm = TRUE)
+
+col1 <- colorRamp2(c(rng[1], mid, rng[2]),
+                      c("blue", "white", "red"))
+
+set.seed(1995)
+
+Heat_crudo <- Heatmap(mat,
+        name = "Expresión",
+        row_km = 4,
+        column_km = 3,
+        row_km_repeats = 100,
+        column_km_repeats = 100,
+        left_annotation = heat_anot,
+        col = col1,
+        cluster_rows = TRUE,
+        cluster_columns = TRUE,
+        show_row_names = TRUE,
+        show_column_names = TRUE,
+        column_title = "Expresión génica\n(datos crudos por paciente)")
+draw(Heat_crudo)
+```
+**Figura 3:** Mapa de calor de datos crudos que muestra la expresión génica absoluta, con agrupamiento de pacientes y genes, evidenciando diferencias globales en la magnitud de expresión entre clústeres.
+
+### Análisis de la Figura 3 y 4:
+
+El análisis del mapa de calor de datos crudos (Figura 3) permite identificar patrones globales de expresión génica entre pacientes, reflejando directamente las diferencias en magnitud de expresión. En esta figura se observan cuatro clústeres de pacientes con perfiles diferenciados, donde los clústeres 3 y 4 (parte inferior) presentan una mayor expresión absoluta en el bloque izquierdo de genes, evidenciada por tonos rojizos intensos. En contraste, los clústeres 1 y 2 (parte superior) muestran una menor expresión en este mismo conjunto génico. Este bloque incluye genes clave como ESR1, HER2, MKI67 y CCND1, asociados a proliferación celular, así como BRCA1, BRCA2 y TP53, relacionados con la reparación del ADN y control del daño celular. En términos generales, una proporción importante de los pacientes se agrupa en los clústeres 3 y 4, lo que sugiere que este patrón de alta expresión en genes asociados a proliferación y mantenimiento celular representa una tendencia predominante en la cohorte.
+
+Estos hallazgos son consistentes con los resultados observados en la Figura 1, donde se evidencia una disminución global de la expresión génica en el grupo tratado. En particular, la reducción en genes como ESR1, HER2, MKI67 y CCND1 sugiere un efecto antiproliferativo del tratamiento, mientras que la disminución de BRCA1, BRCA2 y TP53 podría comprometer procesos de reparación del ADN y control del daño celular. Asimismo, la reducción de CDH1 podría favorecer la pérdida de adhesión celular, y la alteración en GATA3 y FOXA1 sugiere un impacto adicional sobre la regulación transcripcional y el estado de diferenciación celular. En conjunto, la Figura 1 apunta a un efecto amplio pero poco selectivo del fármaco, que afecta simultáneamente vías asociadas a proliferación tumoral y mecanismos esenciales de mantenimiento celular.
+
+Sin embargo, al tratarse de datos crudos, la interpretación de los patrones observados en la Figura 3 puede estar influenciada por diferencias en la escala de expresión entre genes y por la presencia de valores extremos, lo que podría sesgar la visualización y afectar la formación de clústeres. En este contexto, aunque la Figura 3 permite identificar diferencias globales entre pacientes, resulta limitada para detectar patrones relativos más precisos dentro de cada individuo.
+
+Para abordar esta limitación, se generó un mapa de calor estandarizado intrapaciente (Figura 4), en el cual cada paciente fue normalizado respecto a su propio perfil de expresión. Esta transformación permite resaltar la expresión relativa de los genes dentro de cada individuo, eliminando el efecto de la magnitud absoluta.
+
+```{r heatmap STD, fig.width=12, fig.height=12, fig.align="center"}
+mat_tscaled <- t(scale(t(mat)))
+
+Heat_norm1 <- Heatmap(mat_tscaled,
+                      name = "Expresión",
+                      row_km = 4,
+                      column_km = 3,
+                      row_km_repeats = 100,
+                      column_km_repeats = 100,
+                      left_annotation = heat_anot,
+                      col = colorRamp2(c(-2, 0, 2), c("blue", "white", "red")),
+                      cluster_rows = TRUE,
+                      cluster_columns = TRUE,
+                      show_row_names = TRUE,
+                      show_column_names = TRUE,
+                      column_title = "Expresión génica\n(datos estandarizados intrapaciente)")
+draw(Heat_norm1)
+```
+**Figura 4:** Mapa de calor de datos estandarizados intrapaciente que resalta patrones relativos de expresión génica, permitiendo identificar módulos de coexpresión y perfiles transcriptómicos diferenciados entre pacientes.
+
+
+En la Figura 4 se mantienen los cuatro clústeres de pacientes, pero su interpretación cambia significativamente. Los clústeres 3 y 4 continúan mostrando una sobreexpresión relativa del bloque izquierdo de genes, mientras que los clústeres 1 y 2 presentan una subexpresión relativa de este mismo conjunto, lo que es consistente con el efecto antiproliferativo sugerido en la Figura 1.
+
+Adicionalmente, se observa que un subgrupo bien definido de pacientes dentro del clúster 1 (región central del mapa) presenta una sobreexpresión relativa marcada en un conjunto de genes localizados principalmente en el bloque central, entre los que se incluyen VEGFA, B2M, TNF, ACTB, HPRT1, RPL13A, CXCL8, EGFR, IL6 y GAPDH. Estos genes están funcionalmente asociados a procesos de señalización celular, respuesta inmune, metabolismo energético y regulación transcripcional. Este subgrupo se caracteriza por un perfil transcriptómico distintivo, definido por la activación relativa de vías de señalización e inmunorregulación en contraste con la disminución de genes asociados a proliferación. En contraste, un subgrupo dentro del clúster 3 presenta una marcada subexpresión relativa de este mismo conjunto génico, lo que refuerza la existencia de patrones opuestos entre grupos de pacientes.
+
+Este patrón sugiere que, en este subgrupo específico de pacientes, el tratamiento no solo reduce la expresión de genes proliferativos —tal como se observa en la Figura 1— sino que también induce una activación compensatoria de vías de señalización, respuesta inmunitaria y mantenimiento celular, lo que podría reflejar mecanismos adaptativos frente a la presión terapéutica. Este hallazgo refuerza la idea de una respuesta heterogénea al tratamiento, en la cual distintos grupos de pacientes no solo difieren en la magnitud de la inhibición génica, sino también en la activación diferencial de rutas biológicas específicas. En este contexto, la reorganización observada en la región central del clúster 1 es consistente con la activación de un mecanismo regulatorio particular en este subgrupo, el cual no se evidencia en los pacientes tratados correspondientes al clúster 2, reforzando la existencia de respuestas moleculares diferenciadas entre clústeres.
+
+Los bloques central y derecho muestran patrones diferenciales entre clústeres, destacando procesos relacionados con señalización celular, metabolismo, inmunorregulación y apoptosis, lo que evidencia una reorganización funcional del transcriptoma.
+
+---
+
+## Conclusión
+
+En conjunto, las Figuras 1, 3 y 4 ofrecen perspectivas complementarias: la Figura 1 evidencia el efecto global del tratamiento sobre la expresión génica, la Figura 3 permite observar diferencias absolutas entre pacientes, y la Figura 4 revela la estructura relativa de dichos cambios a nivel individual. Este patrón se ve reforzado por los resultados de la Figura 2, que evidencian una marcada heterogeneidad en los parámetros bioquímicos de la cohorte, caracterizada por distribuciones asimétricas y alta variabilidad interindividual, lo que sugiere la coexistencia de distintos estados fisiológicos entre pacientes. Esta heterogeneidad basal proporciona un contexto biológico que contribuye a explicar la diversidad de respuestas transcriptómicas observadas.
+
+De este modo, la integración de todos los análisis sugiere que el tratamiento induce una disminución global de la expresión génica, pero con una distribución heterogénea entre pacientes y vías biológicas, modulada por la variabilidad fisiológica de la cohorte. Esto sugiere que el tratamiento no solo modula la proliferación, sino que induce una reprogramación transcriptómica diferencial entre pacientes, dependiente del contexto biológico individual.
+
+---
+
+## Referencias
+UniProt Consortium. BRCA1 - Breast cancer type 1 susceptibility protein - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P38398/entry
+
+UniProt Consortium. BRCA2 - Breast cancer type 2 susceptibility protein - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P51587/entry
+
+UniProt Consortium. CCND1 - G1/S-specific cyclin-D1 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P24385/entry
+
+UniProt Consortium. CDH1 - Cadherin-1 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P12830/entry
+
+UniProt Consortium. ERBB2 - Receptor tyrosine-protein kinase erbB-2 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P04626/entry
+
+UniProt Consortium. ESR1 - Estrogen receptor - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P03372/entry
+
+UniProt Consortium. FOXA1 - Hepatocyte nuclear factor 3-alpha - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P55317/entry
+
+UniProt Consortium. GATA3 - Trans-acting T-cell-specific transcription factor GATA-3 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P23771/entry
+
+UniProt Consortium. MKI67 - Proliferation marker protein Ki-67 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P46013/entry
+
+UniProt Consortium. TP53 - Cellular tumor antigen p53 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P04637/entry
+
+UniProt Consortium. ACTB - Actin, cytoplasmic 1 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P60709/entry
+
+UniProt Consortium. B2M - Beta-2-microglobulin - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P61769/entry
+
+UniProt Consortium. CXCL8 - Interleukin-8 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P10145/entry
+
+UniProt Consortium. EGFR - Epidermal growth factor receptor - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P00533/entry
+
+UniProt Consortium. GAPDH - Glyceraldehyde-3-phosphate dehydrogenase - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P04406/entry
+
+UniProt Consortium. HPRT1 - Hypoxanthine-guanine phosphoribosyltransferase - Homo sapiens. UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P00492/entry
+
+UniProt Consortium. IL6 - Interleukin-6 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P05231/entry
+
+UniProt Consortium. RPL13A - Large ribosomal subunit protein uL13 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P40429/entry
+
+UniProt Consortium. TNF - Tumor necrosis factor - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P01375/entry
+
+UniProt Consortium. VEGFA - Vascular endothelial growth factor A, long form - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P15692/entry
+
+UniProt Consortium. MMP9 - Matrix metalloproteinase-9 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P14780/entry
+
+UniProt Consortium. PTEN - Phosphatidylinositol 3,4,5-trisphosphate 3-phosphatase and dual-specificity protein phosphatase PTEN - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P60484/entry
+
+UniProt Consortium. MYC - Myc proto-oncogene protein - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P01106/entry
+
+UniProt Consortium. KRAS - GTPase KRAS - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P01116/entry
+
+UniProt Consortium. AKT1 - RAC-alpha serine/threonine-protein kinase - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P31749/entry
+
+UniProt Consortium. CDKN2A - Cyclin-dependent kinase inhibitor 2A - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P42771/entry
+
+UniProt Consortium. PDCD1 - Programmed cell death protein 1 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/Q15116/entry
+
+UniProt Consortium. CTLA4 - Cytotoxic T-lymphocyte protein 4 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P16410/entry
+
+UniProt Consortium. HLA-A - HLA class I antigen, A alpha chain - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P04439/entry
+
+UniProt Consortium. CASP3 - Caspase-3 - Homo sapiens (Human). UniProt. Disponible en: https://www.uniprot.org/uniprotkb/P42574/entry
+
+Gu Z. ComplexHeatmap Complete Reference - A Single Heatmap. GitHub. Disponible en: https://jokergoo.github.io/ComplexHeatmap-reference/book/a-single-heatmap.html
+
+---
+
+# Anexos
+## Anexo 1
+```{r Anexo 1}
+# Código de generación de los box plots (se muestra el box plot del gen ESR1 al final del código a modo de ejemplo)
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_esr1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_esr1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_esr1 <- as.numeric(df_box$AQ_esr1)
+df_box <- df_box %>% filter(!is.na(AQ_esr1))
+
+if (nrow(df_box) > 0) {
+    p_box_esr1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_esr1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de ESR1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion ESR1") +
+    theme_classic() +
+    theme(legend.position = "none")
+    }
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_her2) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_her2))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_her2 <- as.numeric(df_box$AQ_her2)
+df_box <- df_box %>% filter(!is.na(AQ_her2))
+
+if (nrow(df_box) > 0) {
+  p_box_her2 <- ggplot(df_box, aes(x = tratamiento, y = AQ_her2, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de HER2 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion HER2") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_brca1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_brca1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_brca1 <- as.numeric(df_box$AQ_brca1)
+df_box <- df_box %>% filter(!is.na(AQ_brca1))
+
+if (nrow(df_box) > 0) {
+  p_box_brca1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_brca1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de BRCA1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion BRCA1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_brca2) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_brca2))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_brca2 <- as.numeric(df_box$AQ_brca2)
+df_box <- df_box %>% filter(!is.na(AQ_brca2))
+
+if (nrow(df_box) > 0) {
+  p_box_brca2 <- ggplot(df_box, aes(x = tratamiento, y = AQ_brca2, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de BRCA2 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion BRCA2") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_mki67) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_mki67))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_mki67 <- as.numeric(df_box$AQ_mki67)
+df_box <- df_box %>% filter(!is.na(AQ_mki67))
+
+if (nrow(df_box) > 0) {
+  p_box_mki67 <- ggplot(df_box, aes(x = tratamiento, y = AQ_mki67, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de MKI67 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion MKI67") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_gata3) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_gata3))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_gata3 <- as.numeric(df_box$AQ_gata3)
+df_box <- df_box %>% filter(!is.na(AQ_gata3))
+
+if (nrow(df_box) > 0) {
+  p_box_gata3 <- ggplot(df_box, aes(x = tratamiento, y = AQ_gata3, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de GATA3 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion GATA3") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_foxa1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_foxa1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_foxa1 <- as.numeric(df_box$AQ_foxa1)
+df_box <- df_box %>% filter(!is.na(AQ_foxa1))
+
+if (nrow(df_box) > 0) {
+  p_box_foxa1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_foxa1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de FOXA1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion FOXA1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_ccnd1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_ccnd1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_ccnd1 <- as.numeric(df_box$AQ_ccnd1)
+df_box <- df_box %>% filter(!is.na(AQ_ccnd1))
+
+if (nrow(df_box) > 0) {
+  p_box_ccnd1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_ccnd1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de CCND1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion CCND1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_cdh1) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_cdh1))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_cdh1 <- as.numeric(df_box$AQ_cdh1)
+df_box <- df_box %>% filter(!is.na(AQ_cdh1))
+
+if (nrow(df_box) > 0) {
+  p_box_cdh1 <- ggplot(df_box, aes(x = tratamiento, y = AQ_cdh1, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de CDH1 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion CDH1") +
+    theme_classic() +
+    theme(legend.position = "none")
+}
+
+df_box <- df_genes %>%
+  select(tratamiento, AQ_tp53) %>%
+  filter(!is.na(tratamiento), !is.na(AQ_tp53))
+
+df_box$tratamiento <- as.factor(df_box$tratamiento)
+df_box$AQ_tp53 <- as.numeric(df_box$AQ_tp53)
+df_box <- df_box %>% filter(!is.na(AQ_tp53))
+
+if (nrow(df_box) > 0) {
+  p_box_tp53 <- ggplot(df_box, aes(x = tratamiento, y = AQ_tp53, fill = tratamiento)) +
+    geom_boxplot(alpha = 0.5) +
+    geom_jitter(width = 0.15, alpha = 0.3, size = 1) +
+    scale_fill_manual(values = c("steelblue", "indianred")) +
+    labs(
+      title = "Expresión de TP53 según tratamiento",
+      subtitle = "",
+      x = "Tipo de tratamiento",
+      y = "Expresion TP53") +
+    theme_classic() +
+    theme(legend.position = "none")
+
+   plot(p_box_esr1)
+  }
+
+```
+
+## Anexo 2
+```{r Anexo 2}
+# Código de generación de los histogramas (se muestra el histograma de glucosa al final del código a modo de ejemplo)
+{df_hist_glu <- df_genes %>%
+  select(glucosa) %>%
+  filter(!is.na(glucosa))
+
+if (nrow(df_hist_glu) > 0) {
+  p_hist_glu <- ggplot(df_hist_glu, aes(x = glucosa)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Glucosa",
+      subtitle = "",
+      x = "Glucosa (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+  print(p_hist_glu)
+}
+
+
+df_hist_leu <- df_genes %>%
+  select(leucocitos) %>%
+  filter(!is.na(leucocitos))
+
+if (nrow(df_hist_leu) > 0) {
+  p_hist_leu <- ggplot(df_hist_leu, aes(x = leucocitos)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Leucocitos",
+      subtitle = "",
+      x = expression("Leucocitos ("*10^3*" células/µL)"),
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_lin <- df_genes %>%
+  select(linfocitos) %>%
+  filter(!is.na(linfocitos))
+
+if (nrow(df_hist_lin) > 0) {
+  p_hist_lin <- ggplot(df_hist_lin, aes(x = linfocitos)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Linfocitos",
+      subtitle = "",
+      x = expression("Linfocitos ("*10^3*" células/µL)"),
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_neu <- df_genes %>%
+  select(neutrofilos) %>%
+  filter(!is.na(neutrofilos))
+
+if (nrow(df_hist_neu) > 0) {
+  p_hist_neu <- ggplot(df_hist_neu, aes(x = neutrofilos)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Neutrófilos",
+      subtitle = "",
+      x = expression("Neutrófilos ("*10^3*" células/µL)"),
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_chol <- df_genes %>%
+  select(chol) %>%
+  filter(!is.na(chol))
+
+if (nrow(df_hist_chol) > 0) {
+  p_hist_chol <- ggplot(df_hist_chol, aes(x = chol)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Colesterol",
+      subtitle = "",
+      x = "Colesterol (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_hdl <- df_genes %>%
+  select(hdl) %>%
+  filter(!is.na(hdl))
+
+if (nrow(df_hist_hdl) > 0) {
+  p_hist_hdl <- ggplot(df_hist_hdl, aes(x = hdl)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "HDL",
+      subtitle = "",
+      x = "HDL (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_fe <- df_genes %>%
+  select(hierro) %>%
+  filter(!is.na(hierro))
+
+if (nrow(df_hist_fe) > 0) {
+  p_hist_fe <- ggplot(df_hist_fe, aes(x = hierro)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Hierro",
+      subtitle = "",
+      x = "Hierro (µg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_iga <- df_genes %>%
+  select(iga) %>%
+  filter(!is.na(iga))
+
+if (nrow(df_hist_iga) > 0) {
+  p_hist_iga <- ggplot(df_hist_iga, aes(x = iga)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "IgA",
+      subtitle = "",
+      x = "IgA (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_ige <- df_genes %>%
+  select(ige) %>%
+  filter(!is.na(ige))
+
+if (nrow(df_hist_ige) > 0) {
+  p_hist_ige <- ggplot(df_hist_ige, aes(x = ige)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "IgE",
+      subtitle = "",
+      x = "IgE (UI/mL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_igg <- df_genes %>%
+  select(igg) %>%
+  filter(!is.na(igg))
+
+if (nrow(df_hist_igg) > 0) {
+  p_hist_igg <- ggplot(df_hist_igg, aes(x = igg)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "IgG",
+      subtitle = "",
+      x = "IgG (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_ign <- df_genes %>%
+  select(ign) %>%
+  filter(!is.na(ign))
+
+if (nrow(df_hist_ign) > 0) {
+  p_hist_ign <- ggplot(df_hist_ign, aes(x = ign)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "IgN",
+      subtitle = "",
+      x = "IgN (UI/mL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_ldl <- df_genes %>%
+  select(ldl) %>%
+  filter(!is.na(ldl))
+
+if (nrow(df_hist_ldl) > 0) {
+  p_hist_ldl <- ggplot(df_hist_ldl, aes(x = ldl)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "LDL",
+      subtitle = "",
+      x = "LDL (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_pcr <- df_genes %>%
+  select(pcr) %>%
+  filter(!is.na(pcr))
+
+if (nrow(df_hist_pcr) > 0) {
+  p_hist_pcr <- ggplot(df_hist_pcr, aes(x = pcr)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Proteína C reactiva",
+      subtitle = "",
+      x = "PCR (mg/L)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_tra <- df_genes %>%
+  select(transferrina) %>%
+  filter(!is.na(transferrina))
+
+if (nrow(df_hist_tra) > 0) {
+  p_hist_tra <- ggplot(df_hist_tra, aes(x = transferrina)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Transferrina",
+      subtitle = "",
+      x = "Transferrina (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_tri <- df_genes %>%
+  select(trigliceridos) %>%
+  filter(!is.na(trigliceridos))
+
+if (nrow(df_hist_tri) > 0) {
+  p_hist_tri <- ggplot(df_hist_tri, aes(x = trigliceridos)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Triglicéridos",
+      subtitle = "",
+      x = "Triglicéridos (mg/dL)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+}
+
+
+df_hist_cpk <- df_genes %>%
+  select(cpk) %>%
+  filter(!is.na(cpk))
+
+if (nrow(df_hist_cpk) > 0) {
+  p_hist_cpk <- ggplot(df_hist_cpk, aes(x = cpk)) +
+    geom_histogram(aes(y = after_stat(density)),
+                   bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+    geom_density(color = "red", linewidth = 1.2, na.rm = TRUE) +
+    labs(
+      title = "Creatina fosfoquinasa",
+      subtitle = "",
+      x = "CPK (U/L)",
+      y = "Densidad"
+    ) +
+    theme_minimal()
+
+}
+}
+```
+
