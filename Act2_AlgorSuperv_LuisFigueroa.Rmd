@@ -1,0 +1,496 @@
+---
+title: "Comparación de Modelos de Machine Learning para la Clasificación de Cáncer de Mama"
+author: "Luis Ignacio Figueroa Gómez"
+date: "2026-04-15"
+output: html_document 
+---
+<style>
+p {
+  text-align: justify;
+}
+</style>
+
+---
+
+
+
+## **Abstract**
+
+El presente trabajo tuvo como objetivo aplicar y comparar distintos algoritmos de aprendizaje supervisado para la clasificación de tumores benignos y malignos a partir de características biomédicas asociadas al cáncer de mama. Para ello, se utilizó un conjunto de datos previamente procesado y validado, sobre el cual se entrenaron modelos de árboles de decisión, Naive Bayes, Random Forest y Gradient Boosting Machine (GBM).
+
+El conjunto de datos se dividió en subconjuntos de entrenamiento (80%) y prueba (20%) mediante una partición estratificada, manteniendo proporciones similares entre ambas clases diagnósticas. Asimismo, todos los modelos fueron evaluados utilizando validación cruzada de 10 particiones con el objetivo de obtener una estimación más robusta del rendimiento predictivo.
+
+La evaluación de los modelos se realizó mediante métricas de clasificación como exactitud, sensibilidad, especificidad y coeficiente Kappa, permitiendo analizar tanto el desempeño global como la capacidad de identificar correctamente tumores malignos y benignos, además del grado de concordancia entre las predicciones realizadas y las clasificaciones reales. Los resultados obtenidos evidenciaron diferencias importantes entre los algoritmos evaluados, observándose un mejor rendimiento en los métodos ensemble basados en múltiples árboles de decisión. En particular, Random Forest presentó el mejor desempeño global, alcanzando una exactitud de 97.35% y un coeficiente Kappa de 0.9423, mientras que GBM también mostró resultados altamente satisfactorios con una exactitud de 95.58%. Por su parte, Naive Bayes y el árbol de decisión presentaron un rendimiento adecuado, aunque con una menor capacidad de clasificación en comparación con los modelos ensemble.
+
+En conjunto, el análisis permitió comparar distintos enfoques supervisados de clasificación y evaluar su utilidad potencial en problemas biomédicos relacionados con el diagnóstico asistido por datos.
+
+
+
+---
+
+
+
+# **1. Introducción**
+El aprendizaje automático supervisado se ha consolidado como una de las herramientas más relevantes dentro del análisis de datos biomédicos, especialmente en tareas de clasificación diagnóstica. Gracias a su capacidad para identificar patrones complejos en grandes volúmenes de información, estos métodos permiten construir modelos predictivos capaces de asistir en la detección temprana de distintas patologías.**<sup>1</sup>**
+
+En el contexto oncológico, la clasificación entre tumores benignos y malignos representa un problema de especial interés clínico, debido a las implicaciones diagnósticas y terapéuticas asociadas a errores de clasificación. En particular, los falsos negativos constituyen uno de los escenarios más críticos, ya que corresponden a tumores malignos clasificados erróneamente como benignos.**<sup>2-4</sup>**
+
+El presente trabajo tiene como objetivo aplicar y comparar distintos algoritmos de aprendizaje supervisado sobre un conjunto de datos biomédicos relacionados con cáncer de mama, con el fin de analizar su capacidad predictiva en la clasificación de tumores benignos y malignos. Para ello, se estudiaron modelos de distinta complejidad y enfoque metodológico, incluyendo árboles de decisión**<sup>5</sup>**, Naive Bayes**<sup>6</sup>**, Random Forest**<sup>7</sup>** y Gradient Boosting Machine**<sup>8</sup>**. La comparación entre estos modelos permite analizar no solo diferencias en rendimiento predictivo, sino también aspectos relacionados con interpretabilidad, estabilidad y capacidad de clasificación sobre nuevos datos. De esta manera, el trabajo busca observar cómo evolucionan las métricas de clasificación al pasar desde modelos más simples e interpretables hacia métodos ensemble más complejos basados en múltiples árboles de decisión.
+
+
+
+---
+
+
+
+# **2. Métodos**
+
+### **2.1. Configuración del entorno de trabajo, colocación de semilla e importación de librerías**
+
+Una vez realizada la limpieza del entorno con (rm(list = ls())), se estableció el directorio de trabajo, se visualizaron los documentos encontrados en él, y se estableció una semilla para obtener reproducibilidad de resultados.
+
+```{r preparación del entorno}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+rm(list = ls())
+getwd()
+list.files()
+set.seed(1988)
+```
+
+Para la implementación de los distintos algoritmos de aprendizaje supervisado se utilizaron diversas librerías de R. La librería `caret` se empleó para el entrenamiento, validación y evaluación de los modelos, además de permitir la aplicación de validación cruzada y ajuste de parámetros**<sup>9</sup>**. Para la construcción y representación de árboles de decisión se utilizaron las librerías `rpart`, `rpart.plot` y `rattle`. Asimismo, `randomForest` y `gbm` se emplearon para la implementación de los modelos Random Forest y Gradient Boosting Machine, respectivamente. Finalmente, la librería `tidyverse` se utilizó para la manipulación y preparación de los datos durante el análisis.
+
+```{r setup}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(gbm)
+library(tidyverse)
+library(tibble)
+library(gt)
+```
+
+
+### **2.2. Carga y control de calidad del conjunto de datos**
+
+Se cargó el archivo designado para el trabajo y se realizó un control de calidad inicial del dataset (ocultando su salida por motivos de presentación):
+
+- Se exploró la estructura de los datos mediante `str(df)`.
+
+- Se verificó la presencia de valores duplicados con `sum(duplicated(df))`.
+
+- Se resumieron las variables mediante `summary(df)`.
+
+Finalmente, se evaluó la presencia de datos faltantes utilizando `colSums(is.na(df))`.
+
+```{r carga de archivo y control de calidad, results='hide'}
+df <- read.csv("data.csv")
+
+str(df)
+sum(duplicated(df))
+summary(df)
+colSums(is.na(df))
+```
+
+La inspección inicial mostró que el conjunto de datos estaba compuesto por variables numéricas asociadas a características tumorales de muestras de pacientes, junto con una variable categórica que distinguía entre tumores benignos y malignos. Adicionalmente, no se identificaron datos ausentes en ninguna de las variables del conjunto de datos.
+
+Dado que las variables ya se encontraban en formato numérico y no presentaban valores perdidos, no fue necesario aplicar procesos adicionales antes del entrenamiento de los modelos. De esta manera, los algoritmos supervisados pudieron aplicarse directamente sobre el conjunto de datos original.
+
+
+### **2.3. Métodos de aprendizaje supervisado**
+
+Una vez preparado el conjunto de datos, se aplicaron distintos algoritmos de aprendizaje supervisado para la clasificación de tumores benignos y malignos a partir de las características tumorales presentes en los datos.**<sup>1</sup>**
+
+Los modelos entrenados fueron árboles de decisión, Naive Bayes, Random Forest y Gradient Boosting Machine , todos evaluados sobre el mismo conjunto de datos. El rendimiento de los modelos se analizó mediante distintas métricas de clasificación, incluyendo exactitud, sensibilidad y especificidad. Estas métricas permitieron evaluar tanto el desempeño global de los algoritmos como su capacidad para identificar correctamente tumores malignos y benignos.
+
+
+#### **2.3.1. Funciones y parámetros**
+
+Los distintos algoritmos supervisados se implementaron mediante funciones específicas en R, utilizando principalmente la librería `caret` para el entrenamiento y evaluación de los modelos.**<sup>9</sup>**
+
+- Árbol de decisión `(train(method = "rpart"))`**<sup>5</sup>**: se utilizó para construir un modelo de clasificación basado en reglas de decisión generadas a partir de las variables tumorales. El parámetro `tuneLength = 10` permitió explorar distintos valores del parámetro de complejidad del árbol.
+
+- Naive Bayes `(train(method = "nb"))`**<sup>6</sup>**: se aplicó como método probabilístico de clasificación, asumiendo independencia condicional entre las variables predictoras.
+
+- Random Forest `(train(method = "rf"))`**<sup>7</sup>**: se utilizó para generar múltiples árboles de decisión y combinar sus predicciones mediante votación. El parámetro `tuneLength = 10` permitió explorar distintos valores de `mtry`, correspondiente al número de variables consideradas en cada división del árbol. Adicionalmente, se utilizó `importance = TRUE` para evaluar la relevancia de las variables en el modelo final.
+
+- Gradient Boosting Machine `(train(method = "gbm"))`**<sup>8</sup>**: se empleó como método ensemble basado en la construcción secuencial de árboles de decisión. El parámetro `tuneLength = 10` permitió explorar distintas combinaciones de parámetros asociados al número de árboles, profundidad y tasa de aprendizaje del modelo. Asimismo, `verbose = FALSE` se utilizó para evitar mensajes adicionales durante el entrenamiento.
+
+En todos los modelos se aplicó validación cruzada de 10 particiones con el objetivo de obtener una evaluación más robusta del rendimiento predictivo. Asimismo, en algunos modelos se aplicaron procesos de centrado y escalado de las variables mediante `preProcess = c("center", "scale")`, con el objetivo de mantener consistencia en el flujo general de análisis.
+
+
+#### **2.3.2. Partición de entrenamiento y prueba**
+
+Antes del entrenamiento de los modelos, el la variable de clasificación fue definida como factor, y el conjunto de datos se dividió en dos subconjuntos: entrenamiento (80%) y prueba (20%). Para ello, se utilizó la función `createDataPartition()` de la librería `caret`**<sup>9</sup>**, aplicando una partición estratificada sobre la variable de clasificación (`Diagnosis`). Este procedimiento permitió mantener proporciones similares de tumores benignos y malignos en ambos subconjuntos.
+
+```{r partición de entrenamiento/prueba}
+# Se garantiza que la clase positiva (Maligno) sea un factor
+df$Diagnosis <- as.factor(df$Diagnosis)
+
+# se garantiza que se mantenga similar en ambos conjuntos la proporción de clases
+trainIndex <- createDataPartition(
+  df$Diagnosis,
+  p = 0.8,
+  list = FALSE
+)
+
+# Generamos el conjunto de entrenamiento
+trainData <- df[trainIndex, ]
+trainData$Diagnosis <- relevel(trainData$Diagnosis, ref = "M")
+
+# Generamos el conjunto de prueba
+testData  <- df[-trainIndex, ]
+testData$Diagnosis  <- relevel(testData$Diagnosis, ref = "M")
+```
+
+
+
+---
+
+
+
+# **3. Resultados**
+
+Todos los algoritmos de aprendizaje supervisado descritos previamente se aplicaron sobre el conjunto de datos `df`, preparado y validado en la sección 2.1.
+
+### **3.1. Algoritmo de Machine Learning: Árbol de Decisión**
+
+#### **3.1.1. Entrenamiento del Árbol de Decisión**
+
+Se entrenó el modelo de árbol de decisión utilizando el conjunto de entrenamiento descrito.
+
+```{r control de entrenamiento con validación cruzada, TD}
+# Definimos el control de entrenamiento
+dt_ctrl <- trainControl(
+  method = "cv",
+  number = 10,
+  classProbs = TRUE
+)
+
+# Entrenamiento del árbol de decisión
+dtModel <- train(
+  Diagnosis ~ .,
+  data = trainData,
+  method = "rpart",
+  trControl = dt_ctrl,
+  preProcess = c("center", "scale"),
+  tuneLength = 10
+)
+```
+
+
+#### **3.1.2. Resultados del Árbol de Decisión**
+
+```{r Resultados TD}
+# Predicción de clases en el conjunto de prueba (Maligno/Benigno)
+predictions_dt <- predict(
+  dtModel,
+  newdata = testData,
+  type = "raw"
+)
+
+# Evaluación del rendimiento mediante matriz de confusión
+confusionMatrix(
+  predictions_dt,
+  testData$Diagnosis
+)
+
+# Representación gráfica del árbol final ajustado
+fancyRpartPlot(
+  dtModel$finalModel,
+  type = 4
+)
+```
+
+**Figura 1.** Representación gráfica del árbol de decisión entrenado para la clasificación de tumores benignos (B) y malignos (M). Cada nodo muestra la clase predicha, la proporción de observaciones pertenecientes a cada categoría y el porcentaje de muestras incluidas en dicho nodo. Las divisiones del árbol se realizaron utilizando variables tumorales seleccionadas automáticamente por el modelo, permitiendo establecer reglas de clasificación basadas en características asociadas a las muestras analizadas.
+
+
+#### **3.1.3. Análisis de resultados del Árbol de Decisión**
+
+El árbol de decisión alcanzó una exactitud de 87.61%, indicando un buen desempeño general en la clasificación de tumores benignos y malignos. La sensibilidad fue de 73.81%, mostrando que el modelo logró identificar correctamente una proporción moderada de tumores malignos, observándose aún una considerable proporción de falsos negativos. Por otra parte, la especificidad alcanzó un valor de 95.77%, evidenciando una elevada capacidad del modelo para reconocer tumores benignos, con una baja proporción de falsos positivos.
+
+En términos generales, el modelo mostró un comportamiento adecuado como primer enfoque de clasificación supervisada, destacando especialmente en la identificación de tumores benignos. Sin embargo, la menor sensibilidad observada sugiere ciertas limitaciones en la detección de casos malignos, aspecto particularmente relevante en contextos clínicos.
+
+
+
+### **3.2. Algoritmo de Machine Learning: Naive Bayes**
+
+#### **3.2.1. Entrenamiento de Naive Bayes**
+
+Se entrenó el modelo de Naive Bayes utilizando el conjunto de entrenamiento descrito.
+
+```{r Entrenamiento de Naive Bayes}
+# Entrenamiento del modelo Naive Bayes
+nb_model <- train(
+  Diagnosis ~ .,
+  data = trainData,
+  method = "nb",
+  trControl = trainControl(method = "cv", number = 10)
+)
+```
+
+#### **3.2.2. Resultados de Naive Bayes**
+
+```{r Resultados de Naive Bayes}
+# Predicción de clases en el conjunto de prueba (Maligno/Benigno)
+predictions_nb <- predict(
+  nb_model,
+  newdata = testData
+)
+
+# Evaluación del rendimiento mediante matriz de confusión
+confusionMatrix(
+  predictions_nb,
+  testData$Diagnosis
+)
+```
+
+#### **3.2.3. Análisis de resultados de Naive Bayes**
+
+El modelo Naive Bayes alcanzó una exactitud de 89.38%, indicando un desempeño general adecuado en la clasificación de tumores benignos y malignos. La sensibilidad fue de 88.10%, mostrando una elevada capacidad para identificar correctamente tumores malignos, aunque aún se observaron algunos falsos negativos, correspondientes a tumores malignos clasificados erróneamente como benignos. Por otra parte, la especificidad alcanzó un valor de 90.14%, evidenciando una adecuada capacidad del modelo para reconocer tumores benignos, con una proporción moderada de falsos positivos.
+
+Asimismo, el coeficiente Kappa alcanzó un valor de 0.7748, indicando una concordancia considerable entre las predicciones realizadas por el modelo y las clasificaciones reales. En términos generales, el modelo presentó un comportamiento relativamente equilibrado entre la identificación de tumores malignos y benignos, mostrando un rendimiento ligeramente superior al observado en el árbol de decisión. Estos resultados sugieren que Naive Bayes constituye una alternativa simple y eficiente para tareas de clasificación biomédica sobre el conjunto de datos analizado.
+
+
+### **3.3. Algoritmo de Machine Learning: Random Forest**
+
+Con el objetivo de evaluar si los métodos ensemble basados en múltiples árboles de decisión permiten mejorar el rendimiento predictivo respecto a un árbol individual, se implementó el algoritmo Random Forest sobre el conjunto de datos analizado.
+
+#### **3.3.1. Entrenamiento de Random Forest**
+
+Se entrenó el modelo Random Forest utilizando el conjunto de entrenamiento descrito.
+
+```{r Entrenamiento del modelo Random Forest}
+## Entrenamiento del modelo Random Forest
+rf_model <- train(
+  Diagnosis ~ .,
+  data = trainData,
+  method = "rf",
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("center", "scale"),
+  tuneLength = 10,
+  importance = TRUE
+)
+```
+
+#### **3.3.2. Resultados de Random Forest**
+
+```{r Resultados de Random Forest}
+# Predicción de clases en el conjunto de prueba (Maligno/Benigno)
+predictions_rf <- predict(
+  rf_model,
+  newdata = testData
+)
+
+# Evaluación del rendimiento mediante matriz de confusión
+confusionMatrix(
+  predictions_rf,
+  testData$Diagnosis
+)
+```
+
+#### **3.3.3. Análisis de resultados de Random Forest**
+
+El modelo Random Forest alcanzó una exactitud de 97.35%, evidenciando un desempeño altamente satisfactorio en la clasificación de tumores benignos y malignos. La sensibilidad fue de 92.86%, mostrando una elevada capacidad para identificar correctamente tumores malignos, observándose una baja proporción de falsos negativos. Por otra parte, la especificidad alcanzó un valor de 100%, indicando que el modelo logró reconocer correctamente la totalidad de los tumores benignos presentes en el conjunto de prueba, sin registrar falsos positivos.
+
+Asimismo, el coeficiente Kappa alcanzó un valor de 0.9423, indicando una concordancia muy alta entre las predicciones realizadas por el modelo y las clasificaciones reales. En términos generales, el modelo presentó un comportamiento notablemente superior al observado en los algoritmos anteriores, mostrando una clasificación más equilibrada y precisa de ambas categorías tumorales. Estos resultados sugieren que la combinación de múltiples árboles de decisión permitió mejorar en gran medida la capacidad predictiva del modelo sobre nuevos datos.
+
+
+### **3.4. Algoritmo de Machine Learning: Gradient Boosting Machine**
+
+#### **3.4.1. Entrenamiento de Gradient Boosting Machine**
+
+Se entrenó el modelo Gradient Boosting Machine utilizando el conjunto de entrenamiento descrito.
+
+```{r Entrenamiento de Gradient Boosting Machine}
+# Entrenamiento del modelo GBM
+gbm_model <- train(
+  Diagnosis ~ .,
+  data = trainData,
+  method = "gbm",
+  trControl = trainControl(method = "cv", number = 10),
+  preProcess = c("center", "scale"),
+  tuneLength = 10,
+  verbose = FALSE
+)
+```
+
+#### **3.4.2. Resultados de Gradient Boosting Machine**
+
+```{r Resultados de Gradient Boosting Machine}
+# Predicción de clases en el conjunto de prueba (Maligno/Benigno)
+predictions_gbm <- predict(
+  gbm_model,
+  newdata = testData
+)
+
+# Evaluación del rendimiento mediante matriz de confusión
+confusionMatrix(
+  predictions_gbm,
+  testData$Diagnosis
+)
+```
+
+#### **3.4.3. Análisis de resultados de Gradient Boosting Machine**
+
+El modelo Gradient Boosting Machine (GBM) alcanzó una exactitud de 95.58%, evidenciando un desempeño altamente satisfactorio en la clasificación de tumores benignos y malignos. La sensibilidad fue de 92.86%, mostrando una elevada capacidad para identificar correctamente tumores malignos, observándose una baja proporción de falsos negativos. Por otra parte, la especificidad alcanzó un valor de 97.18%, indicando una excelente capacidad del modelo para reconocer correctamente tumores benignos, con una muy baja proporción de falsos positivos.
+
+Asimismo, el coeficiente Kappa alcanzó un valor de 0.9048, indicando una concordancia muy alta entre las predicciones realizadas por el modelo y las clasificaciones reales. En términos generales, el modelo presentó un comportamiento altamente equilibrado entre la identificación de tumores malignos y benignos, mostrando un rendimiento notablemente superior al observado en los modelos más simples evaluados previamente, aunque levemente menor a Random Forest. Estos resultados sugieren que el enfoque basado en múltiples árboles de decisión construidos secuencialmente permitió capturar de manera eficiente los patrones presentes en el conjunto de datos, mejorando considerablemente la capacidad predictiva del modelo.
+
+
+### **3.5. Comparativa de efectividad de algoritmos de Machine Learning**
+
+Con el objetivo de facilitar la comparación global del rendimiento predictivo de los distintos algoritmos supervisados evaluados, se elaboró una tabla resumen integrando las principales métricas de clasificación obtenidas sobre el conjunto de prueba. En particular, se consideraron métricas asociadas tanto al desempeño general de los modelos como a su capacidad para identificar correctamente tumores malignos y benignos.
+
+
+```{r tabla resumen, fig.width=6, fig.height=6, fig.align="center", echo=FALSE}
+library(tibble)
+library(gt)
+
+tabla_modelos <- tibble(
+  Modelo = c(
+    "Árbol de decisión",
+    "Naive Bayes",
+    "Random Forest",
+    "GBM"
+  ),
+  
+  Exactitud = c(
+    0.8761,
+    0.8938,
+    0.9735,
+    0.9558
+  ),
+  
+  Sensibilidad = c(
+    0.7381,
+    0.8810,
+    0.9286,
+    0.9286
+  ),
+  
+  Especificidad = c(
+    0.9577,
+    0.9014,
+    1.0000,
+    0.9718
+  ),
+  
+  Kappa = c(
+    0.7166,
+    0.7748,
+    0.9423,
+    0.9048
+  )
+)
+
+tabla_modelos %>%
+  gt() %>%
+  
+  fmt_percent(
+    columns = c(
+      Exactitud,
+      Sensibilidad,
+      Especificidad
+    ),
+    decimals = 2
+  ) %>%
+  
+  fmt_number(
+    columns = Kappa,
+    decimals = 4
+  ) %>%
+  
+  cols_label(
+    Modelo = "Modelo",
+    Exactitud = "Exactitud",
+    Sensibilidad = "Sensibilidad",
+    Especificidad = "Especificidad",
+    Kappa = "Kappa"
+  ) %>%
+  
+  tab_header(
+    title = md(
+      "**Comparación del rendimiento de los modelos supervisados**"
+    )
+  ) %>%
+  
+  tab_source_note(
+    source_note = md(
+      "Las métricas fueron calculadas sobre el conjunto de prueba."
+    )
+  )
+```
+**Tabla 1.** Comparación del rendimiento de los distintos algoritmos de aprendizaje supervisado evaluados para la clasificación de tumores benignos y malignos. Se presentan las métricas de exactitud, sensibilidad, especificidad y coeficiente Kappa obtenidas sobre el conjunto de prueba para los modelos Árbol de Decisión, Naive Bayes, Random Forest y Gradient Boosting Machine (GBM).
+
+
+
+---
+
+
+
+# **4. Discusión**
+
+Los resultados obtenidos en el presente trabajo evidenciaron diferencias importantes entre los algoritmos supervisados evaluados para la clasificación de tumores benignos y malignos **(Tabla 1)**. En términos generales, se observó una mejora progresiva en el rendimiento predictivo al utilizar modelos de mayor complejidad basados en múltiples árboles de decisión. Esta tendencia también pudo observarse en los valores del coeficiente Kappa, indicando una mayor concordancia entre las predicciones de los modelos y las clasificaciones reales a medida que aumentaba la complejidad de los algoritmos utilizados.
+
+El árbol de decisión presentó el desempeño más limitado entre los modelos estudiados, especialmente debido a su menor sensibilidad en la detección de tumores malignos. Aunque este tipo de modelo posee una elevada interpretabilidad y permite visualizar de manera directa las reglas de clasificación utilizadas, los resultados sugieren que su capacidad predictiva puede verse limitada frente a relaciones más complejas presentes en los datos biomédicos. Asimismo, el valor de Kappa obtenido reflejó una concordancia considerable entre las predicciones realizadas por el modelo y las clasificaciones reales.
+
+El modelo Naive Bayes mostró una mejora moderada respecto al árbol de decisión, alcanzando un comportamiento más equilibrado entre sensibilidad y especificidad. A pesar de tratarse de un modelo relativamente simple, su rendimiento fue adecuado considerando la complejidad del problema. Sin embargo, continuó presentando errores de clasificación relevantes, particularmente en la detección de tumores malignos, como sugiere el valor de sensibilidad obtenido. El incremento observado en el coeficiente Kappa respecto al árbol de decisión sugiere además una mejora leve en la estabilidad y concordancia global del modelo.
+
+Por su parte, los mejores resultados fueron obtenidos mediante los métodos ensemble Random Forest y GBM**<sup>[7,8]</sup>**. Ambos modelos mostraron elevadas métricas de exactitud, sensibilidad, especificidad y coeficiente Kappa **(Tabla 1)**, indicando una notable capacidad para clasificar correctamente ambas categorías tumorales. Especialmente, Random Forest alcanzó el mejor desempeño global del análisis, mostrando además una clasificación extremadamente precisa de tumores benignos y el mayor nivel de concordancia entre predicciones y clasificaciones reales. Estos resultados sugieren que la combinación de múltiples árboles de decisión permite capturar de manera más eficiente patrones complejos presentes en los datos, reduciendo la probabilidad de errores de clasificación.
+
+De manera complementaria, el análisis de importancia de variables realizado sobre el modelo GBM mostró que características asociadas a la morfología tumoral, particularmente `concave_points3`, `perimeter3`, `area3` y `concave_points1` presentaron una elevada contribución relativa en las decisiones de clasificación del modelo **(Anexo 1)**. Estos hallazgos sugieren que variables relacionadas con la forma y extensión tumoral poseen un papel relevante en la discriminación entre tumores benignos y malignos dentro del conjunto de datos analizado.
+
+Aunque GBM también presentó un rendimiento altamente satisfactorio, sus resultados fueron ligeramente inferiores a los observados en Random Forest. Este comportamiento podría relacionarse con las características particulares del conjunto de datos utilizado, relativamente pequeño y con patrones de clasificación bien definidos, condiciones bajo las cuales Random Forest suele comportarse de manera especialmente robusta incluso sin ajustes avanzados de parámetros.
+
+En conjunto, los resultados permiten observar cómo distintos enfoques supervisados presentan fortalezas y limitaciones particulares en tareas de clasificación biomédica**<sup>[2-4]</sup>**. Asimismo, queda de manifiesto la importancia de evaluar no solo la exactitud de los modelos, sino también métricas asociadas a la identificación correcta de tumores malignos, benignos, y al grado de concordancia global de las clasificaciones. Estos aspectos son especialmente relevantes en contextos clínicos, donde los falsos negativos tienen consecuencias considerables en el diagnóstico, tratamiento, y por ende pronóstico, de los pacientes.**<sup>[2-4]</sup>**
+
+Finalmente, el análisis realizado permitió comprobar que los métodos ensemble constituyen herramientas especialmente efectivas para problemas de clasificación biomédica, logrando un rendimiento predictivo superior respecto a modelos más simples. De esta manera, la comparación entre distintos algoritmos supervisados permitió explorar cómo la complejidad de los modelos puede influir directamente en la calidad y consistencia de las predicciones realizadas sobre nuevos datos.
+
+
+---
+
+
+# **5. Referencias**
+
+1. James G, Witten D, Hastie T, Tibshirani R. An Introduction to Statistical Learning with Applications in R. 2nd ed. New York: Springer; 2021.
+
+2. Zuo D, Zhang G, Wang H, Xin L, Yang Y. Machine learning-based models for the prediction of breast cancer recurrence: a comparative study. BMC Med Inform Decis Mak. 2023;23(1):287. doi:10.1186/s12911-023-02384-1.
+
+3. Khaleghi A, Rahgozar M, Mahdavi A, et al. Machine learning techniques to identify risk factors of breast cancer. BMC Med Inform Decis Mak. 2024;24:251. doi:10.1186/s12911-024-02672-1.
+
+4. Li X, Zhang Y, Wang J, et al. Comparison of radiomics-based machine-learning models for predicting pathological complete response in breast cancer. Eur Radiol. 2024;34(9):6124-6135. doi:10.1007/s00330-024-10754-1.
+
+5. Quinlan JR. Induction of decision trees. Mach Learn. 1986;1:81-106. doi:10.1007/BF00116251.
+
+6. Zhang H. The optimality of Naive Bayes. Proc FLAIRS Conf. 2004;1:562-567.
+
+7. Breiman L. Random forests. Mach Learn. 2001;45:5-32. doi:10.1023/A:1010933404324.
+
+8. Friedman JH. Greedy function approximation: a gradient boosting machine. Ann Stat. 2001;29(5):1189-1232. doi:10.1214/aos/1013203451.
+
+9. Kuhn M. Building predictive models in R using the caret package. J Stat Softw. 2008;28(5):1-26. doi:10.18637/jss.v028.i05.
+
+
+---
+
+
+
+# **6. Anexos**
+
+#### **Anexo 1**
+```{r variables mejor consideradas por el modelo}
+### Importancia relativa de las variables en el modelo GBM
+importancia <- varImp(
+  gbm_model,
+  scale = TRUE
+)
+
+### Representación de las 10 variables mejor consideradas por el modelo
+plot(importancia, top = 10)
+```
+
+**Figura Anexo 1:** Se exploró la contribución relativa de las variables tumorales dentro del modelo GBM mediante funciones de importancia de variables. Los resultados mostraron que variables asociadas a características morfológicas tumorales, particularmente concave_points3, perimeter3, area3 y concave_points1, presentaron la mayor influencia relativa en las decisiones del modelo.
+
+

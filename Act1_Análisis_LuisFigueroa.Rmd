@@ -1,0 +1,373 @@
+---
+title: "Análisis de patrones transcriptómicos en cáncer mediante técnicas de aprendizaje no supervisado"
+author: "Luis Ignacio Figueroa Gómez"
+date: "2026-04-15"
+output: html_document 
+---
+<style>
+p {
+  text-align: justify;
+}
+</style>
+
+---
+
+# Abstract
+El análisis de datos transcriptómicos mediante tecnologías de RNA-seq ha generado conjuntos de datos de alta dimensionalidad cuya interpretación requiere el uso de técnicas avanzadas de análisis. En este trabajo se aplicaron métodos de aprendizaje no supervisado para la identificación de patrones en datos de expresión génica correspondientes a distintos tipos de cáncer.
+
+Se evaluaron cuatro técnicas de reducción de dimensionalidad: Análisis de Componentes Principales (PCA), Escalado Multidimensional (MDS), t-Distributed Stochastic Neighbor Embedding (t-SNE) y Uniform Manifold Approximation and Projection (UMAP). Los resultados mostraron que, mientras que PCA y MDS permiten capturar la estructura global de los datos, presentan limitaciones en la separación de ciertos grupos tumorales. Por el contrario, los métodos no lineales, especialmente UMAP, ofrecieron una representación más clara y consistente, permitiendo identificar agrupamientos bien definidos entre los distintos tipos de cáncer.
+
+En conjunto, este estudio pone de manifiesto la importancia de emplear técnicas no lineales para el análisis de datos transcriptómicos de alta dimensionalidad, destacando a UMAP como el método más eficiente para la detección de patrones en este tipo de datos.
+
+---
+
+# 1. Introducción
+El análisis de la expresión génica mediante tecnologías de RNA-seq ha permitido estudiar en profundidad los perfiles transcriptómicos asociados a distintas enfermedades, entre ellas el cáncer<sup>[1]</sup>. Estos datos presentan una alta dimensionalidad, dado que su obtención implica la medición simultánea de múltiples muestras y de los productos de transcripción de un gran número de genes, lo que dificulta su interpretación directa<sup>[2]</sup>.
+
+En este contexto, las técnicas de aprendizaje no supervisado constituyen herramientas fundamentales para explorar la estructura interna de los datos sin necesidad de etiquetas previas. Estas técnicas permiten identificar patrones, detectar agrupamientos naturales y reducir la dimensionalidad del conjunto de datos, facilitando su visualización y análisis<sup>[3]</sup>.
+
+El proyecto The Cancer Genome Atlas (TCGA) proporciona conjuntos de datos transcriptómicos de distintos tipos de cáncer, como BRCA (cáncer de mama), KIRC (cáncer renal), COAD (cáncer de colon), LUAD (cáncer de pulmón) y PRAD (cáncer de próstata)<sup>[4]</sup>. Cada uno de estos tipos tumorales presenta perfiles de expresión génica característicos, lo que permite evaluar la capacidad de los métodos no supervisados para identificar estructuras biológicamente relevantes.
+
+El objetivo de este trabajo es aplicar diferentes técnicas de reducción de dimensionalidad sobre un conjunto de datos de RNA-seq de pacientes con cáncer, con el fin de comparar su rendimiento en la detección de patrones y agrupamientos. En particular, se analizan métodos lineales, como el Análisis de Componentes Principales (PCA)<sup>[5]</sup>, y métodos no lineales modernos, como t-SNE<sup>[6]</sup> y UMAP<sup>[7]</sup>, junto con técnicas basadas en distancias como el Escalado Multidimensional (MDS)<sup>[8]</sup>.
+
+---
+
+# 2. Materiales y Métodos
+
+### 2.1. Configuración del entorno de trabajo
+Como parte de la configuración inicial, se realizó la limpieza del entorno de trabajo y la verificación del directorio activo, con el fin de asegurar la correcta localización de los archivos necesarios para el análisis.
+
+```{r preparación del entorno}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+rm(list = ls())
+getwd()
+list.files()
+```
+
+Para la implementación de los métodos de aprendizaje no supervisado se utilizaron diversas librerías de R. La librería `stats` se empleó para el cálculo de PCA y MDS, mientras que `Rtsne` permitió la aplicación del algoritmo t-SNE. Por su parte, la librería `uwot` se utilizó para la implementación de UMAP. Finalmente, `ggplot2` y `patchwork` se emplearon para la visualización y organización de los gráficos.
+
+```{r setup}
+library(stats)
+library(ggplot2)
+library(Rtsne)
+library(uwot)
+library(patchwork)
+```
+A continuación, se cargaron los archivos que contienen la matriz de expresión génica (`data.csv`) y las etiquetas correspondientes a cada muestra (`labels.csv`). Con el fin de comprobar la estructura del conjunto de datos, se inspeccionó el tipo de las variables y las dimensiones de ambos archivos.
+
+```{r carga de archivos y verificación de información}
+data_raw <- read.csv("data.csv", row.names = 1)
+labels_raw <- read.csv("labels.csv")
+
+str(data_raw)
+str(labels_raw)
+
+head(rownames(data_raw))
+head(colnames(data_raw))
+
+dim(data_raw)
+dim(labels_raw)
+
+nrow(data_raw) == nrow(labels_raw)
+ncol(data_raw) == nrow(labels_raw)
+```
+La inspección inicial mostró que la matriz de expresión génica estaba compuesta exclusivamente por valores numéricos, lo que permite su uso directo en técnicas de reducción de dimensionalidad. Además, se comprobó que el número de filas de la matriz de expresión coincidía con el número de muestras etiquetadas en `labels.csv`, lo que indica que cada fila corresponde a una muestra (paciente) y cada columna a un gen.
+
+### 2.1.1. Procesamiento de los datos
+Una vez verificada la estructura del conjunto de datos, se identificaron algunos aspectos que podían afectar su correcta utilización en los métodos de aprendizaje no supervisado.
+
+En primer lugar, se consideró la posible presencia de valores no numéricos, lo que podría dificultar la aplicación de técnicas de reducción de dimensionalidad. Para solucionar este aspecto, se realizó una conversión explícita de todas las variables a formato numérico.
+
+Asimismo, se evaluó la existencia de valores perdidos en el conjunto de datos. Tras la comprobación, se obtuvo un total de 0 valores faltantes, por lo que no fue necesario aplicar técnicas de eliminación de datos.
+
+Finalmente, se confirmó que la estructura del conjunto de datos era adecuada, ya que cada fila correspondía a una muestra (paciente) y cada columna a un gen, lo que permitió aplicar directamente los métodos de análisis sin necesidad de realizar transformaciones adicionales como la transposición de la matriz.
+
+A partir de este punto, todos los métodos de reducción de dimensionalidad se aplicaron sobre la matriz data.
+
+```{r conversión a numérico y búsqueda de valores perdidos}
+# Conversión a numérico
+data <- data.frame(sapply(data_raw, as.numeric))
+
+# Comprobación de valores perdidos
+sum(is.na(data))
+```
+El análisis mostró que el conjunto de datos no presentaba valores faltantes (0 valores perdidos).
+
+Dado que los datos ya se encontraban en formato numérico y no presentaban valores ausentes, no fue necesario aplicar transformaciones adicionales antes de la aplicación de los métodos de reducción de dimensionalidad.
+
+A partir de este punto, todos los métodos de reducción de dimensionalidad se aplicaron sobre la matriz data.
+
+
+### 2.2. Métodos de aprendizaje no supervisado
+Una vez preparado el conjunto de datos, se aplicaron distintas técnicas de reducción de dimensionalidad con el objetivo de identificar patrones, relaciones de similitud y posibles agrupamientos entre las muestras tumorales.
+
+Se seleccionaron cuatro métodos: Análisis de Componentes Principales (PCA)<sup>[5]</sup>, Escalado Multidimensional (MDS)<sup>[8]</sup>, t-SNE<sup>[6]</sup> y UMAP<sup>[7]</sup>. Estas técnicas fueron seleccionadas por su amplio uso en el análisis de datos de alta dimensionalidad, como los transcriptómicos, y por permitir comparar la capacidad de métodos lineales y no lineales para capturar estructuras complejas en los datos<sup>[4]</sup>.
+
+
+### 2.2.1. Funciones y parámetros
+Las técnicas se implementaron mediante funciones específicas en R:
+
+- **PCA (`prcomp()`)**: se utilizó para obtener una proyección lineal de los datos en un espacio de menor dimensión<sup>[5]</sup>. El argumento `center = TRUE` permitió centrar las variables, eliminando diferencias debidas a la media de cada variable (gen), mientras que `scale. = FALSE` indica que no se aplicó escalado adicional dentro de la función.
+
+- **MDS (`cmdscale()`)**: se aplicó a partir de una matriz de distancias euclídeas calculada con `dist()`, permitiendo representar las muestras en un espacio bidimensional (`k = 2`). Este método busca preservar las distancias entre muestras en el espacio reducido<sup>[8]</sup>.
+
+- **t-SNE (`Rtsne()`)**: se empleó para capturar relaciones no lineales entre las muestras, generando una representación en dos dimensiones (`dims = 2`). Este método está orientado a preservar las relaciones de vecindad local entre observaciones, siendo especialmente útil en datos de alta dimensionalidad donde las relaciones no lineales son relevantes<sup>[6, 11]</sup>.
+
+- **UMAP (`umap()`)**: se utilizó para obtener una proyección no lineal de los datos, preservando tanto la estructura local como parte de la global<sup>[7, 9]</sup>. Los parámetros n_neighbors y min_dist permiten controlar, respectivamente, el tamaño del vecindario considerado y la proximidad entre puntos en la representación final. UMAP suele ofrecer representaciones más estables y rápidas que t-SNE en conjuntos de datos de gran tamaño.
+
+---
+
+# 3. Resultados
+En primer lugar, se fijó una semilla para garantizar la reproducibilidad de los resultados. A partir de este punto, todos los métodos de reducción de dimensionalidad se aplicaron sobre la matriz `data`, previamente preparada en la sección de procesamiento de datos.
+
+```{r data}
+# Reproducibilidad de las ejecuciones
+set.seed(1234)
+```
+
+### 3.1. Análisis de Componentes Principales (PCA)
+Para explorar la estructura global del conjunto de datos, se aplicó un Análisis de Componentes Principales (PCA), proyectando las muestras sobre las componentes principales mediante la función `prcomp()`<sup>[5]</sup>.
+
+Posteriormente, se estimó la varianza explicada por cada componente y se generaron las etiquetas de los ejes en función del porcentaje de varianza explicado por las dos primeras componentes. Finalmente, se representaron gráficamente las muestras en el plano definido por PC1 y PC2, coloreadas según su tipo tumoral **(Figura 1)**. Las dos primeras componentes principales se seleccionaron para facilitar la visualización de los datos en un espacio bidimensional.
+
+```{r pca_plot, fig.width=7, fig.height=7, fig.align="center"}
+# Cálculo de componentes principales
+pca.results <- prcomp(data, center=TRUE, scale.=FALSE)
+
+# Coordenadas de las muestras en el nuevo espacio
+pca.df <- data.frame(pca.results$x)
+
+# Cálculo varianzas
+varianzas <- pca.results$sdev^2
+total.varianza <- sum(varianzas)
+varianza.explicada <- varianzas / total.varianza
+
+# Etiqueta de ejes
+x_label <- paste0("Componente principal 1 (", round(varianza.explicada[1] * 100, 2), "%)")
+y_label <- paste0("Componente principal 2 (", round(varianza.explicada[2] * 100, 2), "%)")
+
+# Representación gráfica de la proyección PCA
+pca_graph <- ggplot(pca.df, aes(x=PC1, y=PC2, color=labels_raw$Class)) +
+  geom_point(size=3) +
+  scale_color_manual(values=c('red', 'blue', 'green', 'orange', 'purple')) +
+  labs(title="Proyección de muestras mediante PCA", x=x_label, y=y_label, color="Tipo de cáncer") +
+  theme_classic() +
+  theme(
+    panel.grid.major = element_line(color="gray90"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "gray95"),
+    plot.title = element_text(hjust = 0.5))
+
+plot(pca_graph)
+```
+
+**Figura 1.** Representación de las muestras mediante Análisis de Componentes Principales (PCA). Cada punto corresponde a una muestra, coloreada según su tipo tumoral (BRCA, COAD, KIRC, LUAD y PRAD). Los ejes representan las dos primeras componentes principales, que explican el 21.66% y el 11.47% de la varianza total, respectivamente.
+
+### 3.1.1. Interpretación de los resultados del PCA
+El análisis mediante PCA permite explorar la estructura global del conjunto de datos transcriptómicos, mostrando cómo se distribuyen las muestras en función de sus perfiles de expresión génica.
+
+La proporción de varianza explicada por las dos primeras componentes indica que la variabilidad del conjunto de datos se encuentra distribuida entre múltiples dimensiones, lo cual es característico de datos de alta dimensionalidad como los obtenidos mediante RNA-seq<sup>[2, 10]</sup>. Esto refleja la complejidad biológica de los procesos tumorales, donde intervienen numerosos genes y rutas moleculares.
+
+En la representación obtenida, se observa que ciertos tipos tumorales, como KIRC (cáncer renal) y PRAD (cáncer de próstata), presentan una clara diferenciación en el espacio reducido, lo que sugiere la existencia de perfiles transcriptómicos específicos asociados a estos cánceres.
+
+Por otro lado, los tipos tumorales BRCA (cáncer de mama), COAD (cáncer de colon) y LUAD (cáncer de pulmón) muestran una mayor proximidad entre sí, lo que sugiere la presencia de similitudes en sus perfiles de expresión génica. Este comportamiento puede explicarse tanto por la existencia de mecanismos moleculares compartidos entre distintos cánceres como por una mayor heterogeneidad dentro de cada grupo, reflejando la presencia de subtipos tumorales con características diversas.
+
+Desde el punto de vista metodológico, estos resultados ponen de manifiesto que, aunque PCA es capaz de capturar tendencias globales en los datos, su naturaleza lineal limita su capacidad para separar completamente todos los grupos. Esto justifica la aplicación de métodos no lineales, como t-SNE y UMAP, que pueden capturar relaciones más complejas en los datos.
+
+### 3.2. Análisis de Escalado Multidimensional (MDS)
+Para explorar la estructura de similitud entre las muestras desde una perspectiva basada en distancias, se aplicó el método MDS, obteniendo una proyección bidimensional a partir de la matriz de distancias euclídeas calculada mediante la función `dist()` y proyectada mediante `cmdscale()`<sup>[8]</sup>.
+
+Finalmente, se representaron gráficamente las muestras en el plano definido por las dos dimensiones obtenidas, coloreadas según su tipo tumoral **(Figura 2)**.
+
+```{r mds_plot, fig.width=7, fig.height=7, fig.align="center"}
+# Cálculo de la matriz de distancias euclideas con la función dist()
+distances <- dist(data, method = 'euclidean')
+
+# Aplicación de MSD con la funcon cmdscale
+mds.results <- cmdscale(distances, eig=TRUE, k=2, x.ret=TRUE)
+
+# Generación de un data frame con los puntos del MDS
+mds.df <- data.frame(mds.results$points)
+
+# Representación gráfica de la proyección MDS
+mds_graph<- ggplot(mds.df, aes(x=X1, y=X2, color=labels_raw$Class)) +
+  geom_point(size=3) + 
+  scale_color_manual(values=c("red", "blue", "green", "orange", "purple")) +
+  labs(title="Proyección de muestras mediante MDS", x="Dimensión 1", y="Dimensión 2", color = "Tipo de cáncer") +
+  theme_classic() + 
+  theme(panel.grid.major = element_line(color = "gray90"), panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"), plot.title=element_text(hjust=0.5))
+
+plot(mds_graph)
+```
+**Figura 2.** Representación de las muestras mediante Escalado Multidimensional (MDS). Cada punto corresponde a una muestra, coloreada según su tipo tumoral (BRCA, COAD, KIRC, LUAD y PRAD). Los ejes representan las dos dimensiones obtenidas a partir de la proyección de la matriz de distancias euclídeas entre muestras. Se observa una clara separación de los grupos KIRC y PRAD respecto al resto de muestras, mientras que los tipos tumorales BRCA, COAD y LUAD presentan un mayor grado de solapamiento.
+
+### 3.2.1. Interpretación de los resultados del MDS
+El análisis mediante MDS permite representar la similitud entre las muestras a partir de sus distancias en el espacio original, ofreciendo una visión complementaria a la obtenida mediante PCA.
+
+La proyección bidimensional muestra una organización general coherente con PCA, ya que ciertos tipos tumorales, como KIRC y PRAD, aparecen claramente diferenciados del resto. Esto sugiere que estos grupos presentan perfiles transcriptómicos más específicos y alejados de los otros tipos de cáncer analizados.
+
+Por otro lado, los grupos BRCA, COAD y LUAD muestran una mayor proximidad en el espacio reducido, lo que puede reflejar similitudes en sus perfiles de expresión génica o una mayor heterogeneidad dentro de cada grupo.
+
+En conjunto, MDS confirma las tendencias globales observadas con PCA, aunque no logra separar completamente todos los tipos tumorales. Esto indica que los datos transcriptómicos contienen relaciones complejas que no siempre pueden captarse plenamente mediante métodos lineales o basados únicamente en distancias euclídeas. Esto pone de manifiesto la necesidad de emplear métodos no lineales, como t-SNE y UMAP, que permiten capturar relaciones más complejas en los datos.
+
+### 3.3. t-Distributed Stochastic Neighbor Embedding (t-SNE)
+Con el objetivo de explorar la estructura local del conjunto de datos, se aplicó el método t-Distributed Stochastic Neighbor Embedding (t-SNE), el cual permite representar las muestras en un espacio de menor dimensión preservando las relaciones de vecindad entre ellas<sup>[6]</sup>.
+
+Se utilizó la función `Rtsne()` para obtener una proyección bidimensional de los datos. Finalmente, se representaron gráficamente las muestras, coloreadas según su tipo tumoral **(Figura 3)**.
+
+```{r tsne_plot, fig.width=10, fig.height=5, fig.align="center"}
+#   Variable Y con matriz del t-SNE con perplexity 10 
+tsne10 <- Rtsne(X=data, dims=2, perplexity = 10, check_duplicates = FALSE)
+tsne_result_10 <- data.frame(tsne10$Y)
+
+# Graficamos
+tsne10_graph <- ggplot(tsne_result_10, aes(x = X1, y = X2, color = labels_raw$Class)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("red", "blue", "green", "orange", "purple")) +
+  labs(title = "Perplexity 10", x = "Dim 1", y = "Dim 2", color = "Tipo de cáncer") +
+  theme_classic() +
+  theme(
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "gray95"), 
+  plot.title=element_text(hjust=0.5))
+
+
+#   Variable Y con matriz del t-SNE con perplexity 30
+tsne30 <- Rtsne(X=data, dims=2, perplexity = 30, check_duplicates = FALSE)
+tsne_result_30 <- data.frame(tsne30$Y)
+
+# Representación gráfica de la proyección T-SNE
+tsne30_graph <- ggplot(tsne_result_30, aes(x = X1, y = X2, color = labels_raw$Class)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("red", "blue", "green", "orange", "purple")) +
+  labs(title = "Perplexity 30", x = "Dim 1", y = "Dim 2", color = "Tipo de cáncer") +
+  theme_classic() +
+  theme(
+    panel.grid.major = element_line(color = "gray90"),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = "gray95"), 
+  plot.title=element_text(hjust=0.5))
+
+combined_tsne <- tsne10_graph + tsne30_graph + 
+  plot_layout(ncol = 2)
+
+combined_tsne + plot_annotation(
+  title = "Proyección de muestras mediante T-SNE con 2 niveles de perplexity",
+  theme = theme(plot.title = element_text(hjust = 0.5))
+)
+```
+**Figura 3.** Representación de las muestras mediante t-SNE utilizando dos valores de *perplexity* (10 y 30). Cada punto corresponde a una muestra, coloreada según su tipo tumoral (BRCA, COAD, KIRC, LUAD y PRAD). En ambas configuraciones se observa una clara separación de los distintos tipos tumorales, evidenciando la capacidad de t-SNE para capturar la estructura local de los datos. Con `perplexity = 10`, los grupos aparecen más compactos y definidos, reflejando un mayor énfasis en las relaciones locales entre muestras. Por otro lado, con `perplexity = 30` se obtiene una distribución más equilibrada de los grupos en el espacio, preservando en mayor medida la estructura global, aunque manteniendo una adecuada separación entre los distintos tipos de cáncer.
+
+
+### 3.3.1. Interpretación de los resultados de t-SNE
+El método t-SNE permitió explorar la estructura local de los datos transcriptómicos mediante una proyección no lineal en dos dimensiones, evaluando el efecto del parámetro *perplexity* sobre la organización de las muestras.
+
+En ambas configuraciones se observa una clara separación entre los distintos tipos tumorales, lo que indica que t-SNE es capaz de capturar relaciones no lineales presentes en los datos de expresión génica que no eran completamente detectadas por PCA y MDS<sup>[6, 11]</sup>. En particular, los grupos correspondientes a BRCA, COAD, KIRC, LUAD y PRAD aparecen bien definidos y con menor grado de solapamiento.
+
+El uso de un valor de *perplexity* menor (10) favorece la formación de grupos más compactos, al priorizar las relaciones locales entre muestras. Por otro lado, un valor mayor (30) proporciona una distribución más equilibrada de los grupos en el espacio, manteniendo una buena separación pero reflejando en mayor medida la estructura global de los datos.
+
+Estos resultados sugieren que los distintos tipos tumorales presentan estructuras internas definidas cuando se analizan por métodos no lineales, lo que pone de manifiesto la presencia de patrones complejos en los datos transcriptómicos. No obstante, la interpretación de las distancias entre grupos debe realizarse con cautela, ya que t-SNE está diseñado principalmente para preservar la estructura local de los datos<sup>[11]</sup>.
+
+En conjunto, t-SNE mejora significativamente la separación de los grupos respecto a PCA y MDS, lo que confirma la utilidad de los métodos no lineales en el análisis de datos de alta dimensionalidad como los de RNA-seq.
+
+### 3.4. UMAP
+Con el fin de explorar la estructura no lineal de los datos transcriptómicos, se aplicó el algoritmo UMAP, que permite proyectar datos de alta dimensionalidad en un espacio de menor dimensión preservando tanto la estructura local como parte de la estructura global<sup>[7, 9]</sup>.
+
+Se utilizaron los parámetros `n_neighbors = 30`, que controla el tamaño del vecindario local, y `min_dist = 0.1`, que regula la compactación de los grupos en la representación final. Valores moderados de `n_neighbors` permiten capturar la estructura local sin perder completamente la organización global de los datos.
+
+Finalmente, se representaron gráficamente las muestras en el espacio bidimensional obtenido, coloreadas según su tipo tumoral **(Figura 4)**.
+
+```{r umap_plot, fig.width=7, fig.height=7, fig.align="center"}
+# Aplicación del algoritmo UMAP para reducción de dimensionalidad
+umap.results <- umap(data, n_neighbors = 30,
+                     n_components = 2,
+                     min_dist = 0.1,
+                     local_connectivity=1, 
+                     ret_model = TRUE,
+                     verbose = TRUE)
+                     
+# coordenadas en el espacio reducido
+umap.df <- data.frame(umap.results$embedding)
+
+# Representación gráfica de la proyección UMAP
+ggplot(umap.df, aes(x = X1, y = X2, color = labels_raw$Class)) +
+  geom_point(size = 3) +
+  scale_color_manual(values = c("red", "blue", "green", "orange", "purple")) +
+  labs(title = "Proyección de muestras mediante UMAP", x = "X1", y = "X2", color = "Tipo de cáncer") +
+  theme_classic() +
+  theme(panel.grid.major = element_line(color = "gray90"), panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "gray95"), plot.title=element_text(hjust=0.5))
+                     
+```                    
+**Figura 4.** Representación de las muestras mediante UMAP. Cada punto corresponde a una muestra, coloreada según su tipo tumoral (BRCA, COAD, KIRC, LUAD y PRAD). Se observa una clara separación entre todos los tipos tumorales, con grupos compactos y bien definidos, sin solapamiento apreciable, lo que evidencia la capacidad de UMAP para capturar la estructura no lineal de los datos.
+
+
+### 3.4.1. Interpretación de los resultados de UMAP
+El análisis mediante UMAP permitió obtener una representación no lineal de los datos transcriptómicos en la que se observa una separación clara y consistente entre todos los tipos tumorales.
+
+A diferencia de PCA y MDS, donde existía un cierto grado de solapamiento entre algunos grupos, y de t-SNE, donde la representación dependía del valor del parámetro `perplexity`, UMAP logra distinguir de forma robusta los distintos tipos de cáncer, generando agrupamientos compactos y bien delimitados para cada uno de ellos.
+
+Esta separación sugiere que los perfiles de expresión génica de los distintos tipos tumorales presentan patrones diferenciados que pueden ser capturados eficazmente mediante métodos no lineales. En particular, la ausencia de solapamiento entre grupos indica que UMAP es capaz de preservar tanto la estructura local como la global de los datos de manera equilibrada.
+
+Desde el punto de vista metodológico, estos resultados ponen de manifiesto que UMAP proporciona una representación más clara y estable en comparación con los métodos previamente analizados, lo que lo convierte en una herramienta especialmente útil para la exploración de datos transcriptómicos de alta dimensionalidad.
+
+En conjunto, UMAP se presenta como el método más eficaz para la detección de patrones y la separación de los distintos tipos tumorales en este conjunto de datos.
+
+---
+
+# 4. Discusión
+
+### 4.1. Comparación entre métodos lineales y no lineales
+El uso de distintas técnicas de reducción de dimensionalidad permitió comparar el comportamiento de métodos lineales y no lineales en el análisis de datos transcriptómicos.<sup>[5-8]</sup>
+
+Los métodos lineales y basados en distancias, como PCA y MDS, capturaron adecuadamente la estructura global del conjunto de datos, permitiendo identificar la diferenciación de ciertos tipos tumorales, como KIRC y PRAD. Sin embargo, estos métodos mostraron limitaciones en la separación de otros grupos, como BRCA, COAD y LUAD, evidenciando su menor capacidad para modelar relaciones complejas en datos de alta dimensionalidad.
+
+En contraste, los métodos no lineales, como t-SNE y UMAP, ofrecieron una representación más detallada de la estructura de los datos<sup>[6, 7, 9]</sup>. t-SNE permitió identificar agrupamientos más definidos, aunque su resultado mostró dependencia de los parámetros utilizados, especialmente del valor de `perplexity`. Por su parte, UMAP proporcionó la representación más clara y consistente, logrando una separación prácticamente completa entre los distintos tipos tumorales.
+
+### 4.2. Interpretación biológica de los resultados
+Desde el punto de vista biológico, los resultados reflejan la complejidad de los perfiles transcriptómicos asociados a distintos tipos de cáncer.
+
+La clara diferenciación de tumores como KIRC y PRAD sugiere la presencia de patrones de expresión génica específicos, posiblemente asociados a mecanismos moleculares propios de estos cánceres. En contraste, la proximidad observada entre BRCA, COAD y LUAD en métodos como PCA y MDS indica la existencia de similitudes en sus perfiles transcriptómicos o una mayor heterogeneidad dentro de estos grupos, lo que podría estar relacionado con la presencia de subtipos tumorales o procesos biológicos compartidos.
+
+En conjunto, estos resultados evidencian que los datos transcriptómicos contienen estructuras biológicamente relevantes que pueden ser exploradas mediante técnicas de aprendizaje no supervisado.
+
+### 4.3. Limitaciones y posibles fuentes de variabilidad
+A pesar de la claridad de los patrones observados, es necesario considerar ciertas limitaciones.
+
+Incluso en métodos como UMAP, se identificaron algunas muestras próximas a grupos distintos al esperado. Este comportamiento puede reflejar tanto la existencia de perfiles intermedios o subtipos tumorales como la heterogeneidad intrínseca de los tumores. Asimismo, no deben descartarse fuentes de variabilidad técnica, como ruido experimental o diferencias en el procesamiento de los datos de RNA-seq, ni posibles errores en la anotación de las muestras<sup>[2, 10]</sup>.
+
+Por otro lado, algunos métodos, como t-SNE, presentan sensibilidad a la elección de parámetros, lo que puede afectar la estabilidad y reproducibilidad de los resultados<sup>[11]</sup>.
+
+
+### 4.4. Selección del método más eficiente
+El análisis comparativo realizado pone de manifiesto que los métodos no lineales son más adecuados para la exploración de datos transcriptómicos de alta dimensionalidad<sup>[6, 7, 9]</sup>.
+
+Entre ellos, UMAP destaca como la técnica más eficiente, al proporcionar una representación clara, estable y bien separada de los distintos tipos tumorales<sup>[7, 9]</sup>. Su capacidad para preservar simultáneamente las relaciones locales y la organización general de los datos permite identificar patrones de forma más robusta que los métodos evaluados previamente.
+
+En conjunto, estos resultados indican que UMAP constituye la herramienta más adecuada para la detección de patrones y la identificación de agrupamientos en este tipo de datos, cumpliendo de manera óptima los objetivos planteados en este estudio<sup>[7]</sup>.
+
+---
+
+# 5. Conclusión
+El análisis de datos transcriptómicos mediante técnicas de aprendizaje no supervisado permitió identificar patrones relevantes en la organización de las muestras tumorales, evidenciando la existencia de estructuras complejas en datos de alta dimensionalidadsup>[3, 10]</sup>.
+
+Los resultados obtenidos muestran que, aunque métodos como PCA<sup>[5]</sup> y MDS<sup>[8]</sup> son útiles para explorar tendencias globales, presentan limitaciones a la hora de discriminar completamente entre distintos tipos tumorales. En contraste, los métodos no lineales, especialmente UMAP<sup>[7, 9]</sup>, ofrecen una representación más clara y robusta de los datos, permitiendo identificar agrupamientos bien definidos y biológicamente coherentes.
+
+En conjunto, este estudio pone de manifiesto la importancia de seleccionar adecuadamente las técnicas de reducción de dimensionalidad en el análisis de datos biológicos, destacando el papel de métodos no lineales como herramientas clave en la identificación de patrones en datos transcriptómicos complejos<sup>[6, 7]</sup>.
+
+---
+
+# Referencias
+1. Wang Z, Gerstein M, Snyder M. RNA-Seq: a revolutionary tool for transcriptomics. Nat Rev Genet. 2009;10(1):57–63.
+2. Conesa A, Madrigal P, Tarazona S, et al. A survey of best practices for RNA-seq data analysis. Genome Biol. 2016;17(1):13.
+3. Kiselev VY, Andrews TS, Hemberg M. Challenges in unsupervised clustering of single-cell RNA-seq data. Nat Rev Genet. 2019;20(5):273–82.
+4. Weinstein JN, Collisson EA, Mills GB, et al. The Cancer Genome Atlas Pan-Cancer analysis project. Nat Genet. 2013;45(10):1113–20.
+5. Jolliffe IT, Cadima J. Principal component analysis: a review and recent developments. Philos Trans A Math Phys Eng Sci. 2016;374(2065):20150202.
+6. van der Maaten L, Hinton G. Visualizing data using t-SNE. J Mach Learn Res. 2008;9:2579–605.
+7. McInnes L, Healy J, Melville J. UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction. arXiv:1802.03426. 2018.
+8. Borg I, Groenen P. Modern multidimensional scaling: Theory and applications. 2nd ed. Springer; 2005.
+9. Becht E, McInnes L, Healy J, et al. Dimensionality reduction for visualizing single-cell data using UMAP. Nat Biotechnol. 2019;37(1):38–44.
+10. Luecken MD, Theis FJ. Current best practices in single-cell RNA-seq analysis. Mol Syst Biol. 2019;15(6):e8746.
+11. Wattenberg M, Viégas F, Johnson I. How to Use t-SNE Effectively. Distill. 2016;1(10):e2.
