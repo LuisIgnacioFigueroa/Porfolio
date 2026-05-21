@@ -1,0 +1,560 @@
+---
+title: "Análisis exploratorio y representación gráfica de expresión génica en pacientes oncológicos"
+author: "Luis Ignacio Figueroa Gómez"
+date: "2026-05-19"
+output:
+  html_document: default
+---
+<style>
+p {
+  text-align: justify;
+}
+</style>
+
+***
+
+## Introducción:
+La evaluación estadística de variables clínicas y de expresión génica constituye una herramienta fundamental para comprender la heterogeneidad biológica presente en enfermedades oncológicas. En este trabajo se analizaron datos correspondientes a 65 pacientes, incluyendo los niveles de expresión de distintos genes asociados a procesos tumorales.
+
+Inicialmente, se evaluó la distribución de las variables continuas mediante pruebas de normalidad y análisis gráfico complementario, con el objetivo de seleccionar métodos estadísticos paramétricos o no paramétricos según correspondiera. Posteriormente, se desarrollaron análisis descriptivos e inferenciales estratificados según tratamiento, extensión tumoral y categorías etarias, permitiendo explorar posibles diferencias en los perfiles de expresión génica entre distintos grupos clínicos.
+
+
+### Preparación del entorno, colocación de semilla e importación de librerías
+Una vez realizada la limpieza del entorno con (rm(list = ls())), se estableció el directorio de trabajo, se visualizaron los documentos encontrados en él, y se estableció una semilla para obtener reproducibilidad de resultados.
+
+```{r setup, results='show'}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE,  message = FALSE, include = TRUE)
+rm(list = ls())
+getwd()
+list.files()
+
+set.seed(1988)
+
+```
+
+Dado el objetivo planteado, se requirió cargar las siguientes librerías.
+
+```{r librerias, results='hide'}
+pacman::p_load(
+  tidyverse,
+  dplyr,
+  tidyr,
+  ggplot2,
+  car,
+  rstatix,
+  gtsummary,
+  gt,
+  broom,
+  janitor,
+  effectsize,
+  ggpubr,
+  tableone,
+  scales,
+  purrr,
+  patchwork
+)
+
+theme_set(theme_classic())
+```
+
+
+
+### Carga y control de calidad del conjunto de datos
+Se cargó el archivo designado para el trabajo y se realizó un control de calidad inicial del dataset (ocultando su salida por motivos de presentación):
+
+- Se exploró la estructura de los datos mediante `str(df)`.
+
+- Se verificó la presencia de valores duplicados con `sum(duplicated(df))`.
+
+- Se resumieron las variables mediante `summary(df)`.
+
+- Se evaluó la presencia de datos faltantes utilizando `colSums(is.na(df))`. 
+
+Finalmente, se visualizaron los nombres de las columnas mediante `names(df)`.
+
+```{r df}
+df <- read.csv("MUBioinfo_dataset_genes_oct2025 (1).csv")
+```
+
+```{r, results='hide'}
+str(df)
+sum(duplicated(df))
+summary(df)
+colSums(is.na(df))
+```
+
+```{r names}
+names(df)
+```
+
+***
+
+### Representación gráfica para la evaluación de normalidad en expresión génica
+Como se solicitó evaluar la normalidad de los datos de expresión génica, se creó el objeto genes. A continuación, se evaluó la normalidad de los datos de expresión para cada gen mediante la prueba de Shapiro-Wilk, muy utilizada para evaluar desviaciones respecto a una distribución normal en muestras biológicas.
+
+```{r genes}
+genes <- names(df)[grepl("^AQ_", names(df))]
+```
+
+
+```{r normalidad}
+tabla_normalidad <- data.frame(
+  gen = character(),
+  `Test realizado` = character(),
+  p_shapiro = numeric(),
+  Interpretacion = character()
+)
+
+for (gen in genes) {
+  
+  p_shapiro <- shapiro.test(df[[gen]])$p.value
+  interpretacion <- ifelse(
+    p_shapiro > 0.05,
+    "Distribución compatible con normalidad",
+    "Evidencia de desviación de normalidad"
+  )
+  tabla_normalidad <- rbind(
+    tabla_normalidad,
+    data.frame(
+      gen = gen,
+      `Test realizado` = "Shapiro-Wilk",
+      p_shapiro = p_shapiro,
+      Interpretacion = interpretacion
+    )
+  )
+}
+
+tabla_normalidad
+```
+
+
+Y se elaboró una tabla formal utilizando el siguiente código
+```{r tabla_1}
+tabla_1 <- tabla_normalidad %>%
+  mutate(
+    gen = toupper(gsub("^AQ_", "", gen)),
+    `Test realizado` = "Shapiro-Wilk"
+  ) %>%
+  
+   select(
+    `Gen analizado` = gen,
+    `Test realizado`,
+    `Valor p` = p_shapiro,
+    Interpretación = Interpretacion
+  ) %>%
+  
+  gt() %>%
+  
+  tab_header(
+    title = md("**Tabla 1. Normalidad de la expresión génica**")
+  ) %>%
+  
+  fmt_scientific(
+    columns = `Valor p`,
+    decimals = 3
+  ) %>%
+  
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) %>%
+  
+   tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(
+      columns = everything()
+    )
+  ) %>%
+  
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      columns = `Gen analizado`
+    )
+  ) %>%
+  
+  tab_source_note(
+    source_note = md("Abreviaturas: ACTB, GAPDH, B2M, etc., corresponden a los genes evaluados mediante expresión génica del dataset.<br>
+    Prueba utilizada: Shapiro-Wilk. Un valor p ≤ 0.05 indica evidencia de desviación respecto a normalidad."
+  )
+)
+
+tabla_1
+```
+**Descripción Tabla 1**. Resultados de la prueba de Shapiro–Wilk aplicada a los niveles de expresión génica de los genes en estudio derivados de muestras tumorales. Se presentan los valores p asociados a la prueba realizada, junto con su respectiva interpretación. Los resultados evidencian una desviación significativa respecto a una distribución normal (p < 0.05) en todos los genes evaluados, sugiriendo heterogeneidad biológica y respaldando el uso de métodos estadísticos no paramétricos en análisis posteriores. Como complemento a esta evaluación, se realizaron histogramas con curvas de densidad empíricas y líneas normales teóricas para cada uno de los genes estudiados (**Anexo 1**).
+
+***
+
+
+### Análisis Tabla 1. Resultados de la prueba de Shapiro–Wilk aplicada a los niveles de expresión génica
+La evaluación de normalidad de los 30 genes analizados mostró evidencia consistente de desviación respecto a una distribución normal. Los resultados de la **Tabla 1** evidenciaron valores p extremadamente bajos en la prueba de Shapiro-Wilk para todos los genes evaluados, con magnitudes del orden de 10⁻⁸ y 10⁻⁹, lo que permitió rechazar la hipótesis nula de normalidad en todos los casos. Este hallazgo fue coherente con la inspección visual realizada mediante histogramas con curvas de densidad empírica y curvas normales teóricas superpuestas (**Anexo 1**), donde se observaron distribuciones claramente asimétricas, acumulación de valores cercanos a cero y desviaciones respecto a una distribución normal en todos los genes estudiados.
+
+
+La combinación de pruebas estadísticas formales y evaluación gráfica resulta especialmente importante en bioestadística, dado que la prueba de Shapiro-Wilk puede detectar desviaciones pequeñas de normalidad en determinados contextos muestrales. En este caso, sin embargo, la evidencia visual respaldó de manera clara los resultados obtenidos mediante contraste de hipótesis. Esta aproximación integrada coincide con las recomendaciones metodológicas académicas, donde se sugiere interpretar conjuntamente histogramas, densidades, pruebas de normalidad y QQ-plots; estos últimos útiles para evaluar desviaciones respecto a la distribución teórica normal aunque menos intuitivos de interpretar, antes de decidir el enfoque descriptivo e inferencial más adecuado para análisis posteriores.
+
+Desde un punto de vista biológico, estos resultados son plausibles, ya que la expresión génica rara vez presenta distribuciones normales (gaussianas). Esto se debe a que la regulación transcripcional depende de múltiples factores celulares y moleculares, incluyendo mecanismos epigenéticos, heterogeneidad tumoral, microambiente celular y variabilidad interindividual, entre otros procesos biológicos. Adicionalmente, algunos genes relacionados con proliferación, inflamación o señalización tumoral pueden mostrar sobreexpresión en subgrupos específicos de pacientes, favoreciendo distribuciones alejadas de la normalidad. Por este motivo, la utilización posterior de métodos de análisis no paramétricos y medidas basadas en medianas y rangos intercuartílicos resulta metodológicamente apropiada para el análisis descriptivo e inferencial del dataset.
+
+***
+
+### Representación gráfica para la evaluación de la expresión génica según tratamiento y extensión tumoral
+
+Como se solicitó evaluar la expresión génica estratificada según tratamiento y extensión tumoral, y los datos mostraron una distribución no normal mediante el método de Shapiro-Wilk con fuerte apoyo estadístico, se elaboró la tabla formal considerando medianas y rangos intercuartílicos (p25–p75), utilizando el siguiente código:
+
+```{r expresión según tratamiento y extensión}
+# Tabla2 en función del tratamiento y extensión tumoral
+genes_limpios <- toupper(gsub("^AQ_", "", genes))
+
+df$tratamiento <- factor(
+  df$tratamiento,
+  levels = c("farmaco", "placebo"),
+  labels = c("Fármaco", "Placebo")
+)
+
+df$extension <- factor(
+  df$extension,
+  levels = c("localizado", "metastasico"),
+  labels = c("Localizado", "Metastásico")
+)
+
+
+tabla_tratamiento_y_sexo <- df %>%
+  
+  rename_with(
+    ~ toupper(gsub("^AQ_", "", .x)),
+    all_of(genes)
+  ) %>%
+  
+  select(
+    tratamiento,
+    extension,
+    all_of(genes_limpios)
+  ) %>%
+  
+  tbl_strata(
+    strata = tratamiento,
+    .tbl_fun = ~ .x %>%
+            tbl_summary(
+        by = extension,
+        type = all_continuous() ~ "continuous",
+        statistic = list(
+          all_continuous() ~ "{median} ({p25}, {p75})"
+        ),
+        digits = all_continuous() ~ 2
+      ) %>%
+      add_p(
+        test = all_continuous() ~ "wilcox.test",
+        pvalue_fun = ~ style_pvalue(.x, digits = 3)
+      )
+  ) %>%
+  
+      bold_labels() %>%
+  
+      modify_header(
+        label = "**Gen**",
+        p.value = "**Valor p**"
+  )
+  
+```
+
+```{r expresión según tratamiento y extensión, formato gt}
+tabla_tratamiento_y_sexo_gt <- tabla_tratamiento_y_sexo %>%
+  as_gt() %>%
+  
+  tab_header(
+    title = md("**Tabla 2. Expresión génica según tratamiento y extensión tumoral**")
+  ) %>%
+  
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) %>%
+  
+  tab_style(
+    style = cell_text(
+      weight = "bold",
+      align = "center",
+      size = px(16)
+    ),
+    locations = cells_title(groups = "title")
+  )
+
+tabla_tratamiento_y_sexo_gt
+```
+**Descripción Tabla 2**. Expresión génica según tratamiento y extensión tumoral. Se presentan las medianas y rangos intercuartílicos (p25–p75) de los niveles de expresión génica para cada gen evaluado, estratificados según tratamiento recibido y extensión tumoral. Debido a la ausencia de normalidad observada en las variables génicas, las comparaciones entre grupos se realizaron mediante la prueba no paramétrica de Mann–Whitney/Wilcoxon rank-sum. Los valores p obtenidos permitieron identificar diferencias estadísticamente significativas en algunos genes específicos entre los grupos analizados.
+
+***
+
+### Análisis Tabla 2. Expresión génica según tratamiento y extensión tumoral
+Considerando que los análisis previos de normalidad evidenciaron distribuciones no normales en todas las variables génicas, las comparaciones entre grupos se realizaron mediante la prueba no paramétrica de Mann–Whitney/Wilcoxon rank-sum. La elección de este método se fundamentó en que las comparaciones involucraron dos grupos independientes y en que esta prueba constituye una aproximación adecuada para el análisis estadístico de variables continuas con distribución no normal.
+
+Desde el punto de vista descriptivo, los niveles de expresión génica fueron resumidos mediante medianas y rango intercuartílico (p25–p75), medidas apropiadas para variables con distribuciones asimétricas o alejadas de normalidad. Posteriormente, desde un enfoque inferencial, se aplicó la prueba de Mann–Whitney/Wilcoxon rank-sum con el objetivo de evaluar diferencias estadísticamente significativas en la expresión génica entre pacientes con enfermedad localizada y metastásica dentro de cada grupo de tratamiento.
+
+Como se observa en la **Tabla 2**, en el grupo tratado con fármaco, los genes ACTB, GAPDH, B2M, RPL13A, HPRT1, VEGFA, IL6, TNF, EGFR y CXCL8 presentaron valores p inferiores a 0.001. Por su parte, en el grupo placebo se observaron diferencias altamente significativas en un número mayor de genes, incluyendo además ESR1, HER2, BRCA1, BRCA2, MKI67, GATA3, FOXA1, CCND1, CDH1 y TP53.
+
+Biológicamente, resulta interesante observar que varios genes relacionados con regulación hormonal, proliferación celular, reparación del ADN, adhesión celular y control del ciclo celular presentaron diferencias significativas entre enfermedad localizada y metastásica únicamente en el grupo placebo, mientras que dichas diferencias dejaron de observarse en el grupo tratado con fármaco. Esto podría sugerir que el tratamiento farmacológico estaría modulando parcialmente las diferencias de expresión génica asociadas a la progresión tumoral, generando perfiles de expresión relativamente más similares para dichos genes entre ambos estados clínicos, localizado y metastásico.
+
+Estos hallazgos son biológicamente plausibles, dado que la expresión génica tumoral suele estar influenciada por múltiples factores moleculares y clínicos, incluyendo heterogeneidad intratumoral, microambiente celular, estado inflamatorio y respuesta terapéutica. Asimismo, la variabilidad observada entre grupos resulta esperable en estudios de expresión génica tumoral, donde la regulación transcripcional depende de procesos biológicos complejos y altamente dinámicos.
+
+En conjunto, los resultados de la Tabla 2 permiten caracterizar el comportamiento de los genes estudiados según tratamiento y extensión tumoral, constituyendo una aproximación inicial para la identificación de posibles biomarcadores asociados a progresión tumoral o respuesta terapéutica.
+
+***
+
+### Representación gráfica para la evaluación de la expresión génica según categorías de edad
+
+Como se solicitó evaluar la expresión génica según categorías de edad (< percentil 50 y ≥ percentil 50), se elaboró la tabla formal considerando medianas y rangos intercuartílicos, utilizando el siguiente código:
+```{r expresión según edad formato gt}
+
+mediana_edad <- median(df$edad, na.rm = TRUE)
+
+df$grupo_edad <- ifelse(
+  df$edad < mediana_edad,
+  paste0("Edad < ", round(mediana_edad, 1)),
+  paste0("Edad ≥ ", round(mediana_edad, 1))
+)
+
+tabla_edad_genes <- df %>%
+  
+  rename_with(
+    ~ toupper(gsub("^AQ_", "", .x)),
+    all_of(genes)
+  ) %>%
+  
+  select(
+    grupo_edad,
+    all_of(genes_limpios)
+  ) %>%
+  
+  tbl_summary(
+    by = grupo_edad,
+    
+    type = all_continuous() ~ "continuous",
+    
+    statistic = list(
+      all_continuous() ~ "{median} ({p25}, {p75})"
+    ),
+    
+    digits = all_continuous() ~ 2
+  ) %>%
+  
+  add_p(
+    test = all_continuous() ~ "wilcox.test",
+    pvalue_fun = ~ style_pvalue(.x, digits = 3)
+  ) %>%
+  
+  bold_labels() %>%
+  
+  modify_header(
+    label = "**Gen**",
+    p.value = "**Valor p**"
+  )
+```
+
+```{r expresión según edad formato}
+tabla_edad_genes_gt <- tabla_edad_genes %>%
+  as_gt() %>%
+  
+  tab_header(
+    title = md("**Tabla 3. Expresión génica según categorías de edad**")
+  ) %>%
+  
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) %>%
+  
+  tab_style(
+    style = cell_text(
+      weight = "bold",
+      align = "center",
+      size = px(16)
+    ),
+    locations = cells_title(groups = "title")
+  )
+
+tabla_edad_genes_gt
+
+```
+**Descripción Tabla 3.** Expresión génica según categorías de edad. Se presentan las medianas y rangos intercuartílicos (p25–p75) de los niveles de expresión génica para cada gen evaluado, estratificados según categorías de edad definidas a partir de la mediana de la muestra (< percentil 50 y ≥ percentil 50). Los valores p corresponden a las comparaciones realizadas entre ambos grupos mediante la prueba no paramétrica de Mann–Whitney/Wilcoxon rank-sum.
+
+***
+
+### Análisis Tabla 3. Expresión génica según categorías de edad
+El análisis descriptivo de la expresión génica según categorías de edad se realizó mediante medianas y rango intercuartílico (p25–p75), mientras que el análisis inferencial entre grupos se efectuó mediante la prueba de Mann–Whitney/Wilcoxon rank-sum.
+
+De manera destacada, según describe la **Tabla 3**, CASP3 presentó diferencias estadísticamente significativas entre categorías de edad (p = 0.001), observándose niveles de expresión relativamente mayores en el grupo de menor edad; a su vez, PTEN también mostró diferencias estadísticamente significativas entre grupos etarios (p = 0.019). Si bien estos hallazgos podrían sugerir cierta variabilidad de expresión génica según edad, los resultados deben interpretarse con cautela, dado que el análisis no considera factores como tratamiento o extensión tumoral.
+
+Algunos genes, como VEGFA, TNF, GATA3, MYC y HLAA, presentaron tendencias cercanas a significancia estadística, sugiriendo posibles diferencias parciales en determinados perfiles de expresión génica entre grupos etarios. No obstante, estas observaciones también podrían estar influenciadas por la distribución de variables clínicas y tumorales dentro de la muestra estudiada.
+
+En términos generales, la mayoría de los genes evaluados no mostró diferencias estadísticamente significativas entre pacientes menores y mayores o iguales al percentil 50 de edad, sugiriendo que hay estabilidad en los perfiles de expresión génica respecto a las categorías etarias analizadas.
+
+En conjunto, los resultados indican que la edad tendría una influencia limitada sobre la mayoría de los perfiles de expresión génica evaluados en este estudio; no obstante, genes específicos como CASP3 y PTEN evidenciaron variaciones entre categorías etarias (**Tabla 3**). Sin embargo, tras un análisis estratificado adicional **(Anexo 2)**, se observó que CASP3 mantuvo significancia estadística dentro del grupo tratado con fármaco, mientras que PTEN perdió dicha significancia tras la estratificación. Estos hallazgos sugieren que parte de las variaciones observadas podría estar influenciada por el tratamiento recibido, reflejando además la complejidad biológica de la regulación de la expresión génica en el contexto tumoral.
+
+***
+
+## Conclusiones 
+El presente análisis permitió caracterizar distintos perfiles de expresión génica en pacientes con enfermedad tumoral, integrando herramientas descriptivas, inferenciales y de visualización gráfica aplicadas a variables clínicas y transcriptómicas. La evaluación inicial de normalidad evidenció distribuciones no gaussianas en la totalidad de los genes analizados, resultado coherente con la elevada heterogeneidad biológica descrita en estudios de expresión génica tumoral. En consecuencia, la utilización de métodos estadísticos no paramétricos y de medidas basadas en medianas y rangos intercuartílicos constituyó una aproximación metodológicamente adecuada para el análisis de los datos.
+
+Los resultados mostraron diferencias relevantes en la expresión génica según tratamiento y extensión tumoral. En particular, diversos genes asociados a proliferación celular, regulación hormonal, inflamación, señalización celular y reparación del ADN presentaron diferencias estadísticamente significativas entre enfermedad localizada y metastásica, especialmente dentro del grupo placebo. En contraste, varias de estas diferencias disminuyeron o dejaron de observarse en el grupo tratado con fármaco, lo que podría sugerir un posible efecto modulador del tratamiento sobre determinados perfiles transcriptómicos asociados a progresión tumoral. Estos hallazgos son biológicamente plausibles y coherentes con la complejidad molecular descrita en tumores sólidos, donde la regulación génica depende de múltiples mecanismos celulares y  factores microambientales.
+
+En relación con las categorías etarias, la mayoría de los genes evaluados no mostró diferencias estadísticamente significativas entre grupos de edad definidos según el percentil 50 de la muestra. No obstante, genes específicos como CASP3 y PTEN evidenciaron variaciones entre categorías etarias, aunque parte de estas diferencias pareció estar influenciada por variables clínicas adicionales, particularmente el tratamiento farmacológico. Estos resultados sugieren que la edad podría ejercer una influencia limitada sobre la mayor parte de los perfiles de expresión génica analizados en este estudio, aunque determinados genes podrían presentar patrones diferenciales bajo contextos biológicos específicos.
+
+Los resultados de este estudio deben interpretarse considerando algunas limitaciones. Aunque el estudio incluyó 65 pacientes, el carácter exploratorio del análisis limita la capacidad para establecer asociaciones causales o generalizaciones definitivas. Adicionalmente, la expresión génica tumoral se encuentra influenciada por múltiples factores biológicos y clínicos no evaluados en este estudio, incluyendo heterogeneidad intratumoral, composición del microambiente celular y variabilidad interindividual. Así, los hallazgos identificados deben entenderse como aproximaciones exploratorias que podrían contribuir a la formulación de nuevas hipótesis, así como la identificación preliminar de posibles biomarcadores asociados a progresión tumoral o respuesta terapéutica.
+
+En conjunto, este trabajo permitió aplicar herramientas de análisis estadístico y representación gráfica sobre datos clínico-genómicos reales, integrando interpretación biológica y metodologías reproducibles ampliamente utilizadas en bioinformática y ciencias biomédicas. El uso de R y de técnicas estadísticas no paramétricas facilitó la exploración e interpretación de patrones de expresión génica en un contexto tumoral, reflejando además la creciente importancia del análisis computacional y del manejo de datos transcriptómicos en la investigación biomédica actual.
+
+***
+
+## Referencias
+Hanahan D, Weinberg RA. Hallmarks of cancer: the next generation. Cell. 2011;144(5):646-74.
+
+Cancer Genome Atlas Network. Comprehensive molecular portraits of human breast tumours. Nature. 2012;490(7418):61-70.
+
+Ghasemi A, Zahediasl S. Normality tests for statistical analysis: a guide for non-statisticians. Int J Endocrinol Metab. 2012;10(2):486-9.
+
+R Core Team. R: A language and environment for statistical computing. Vienna: R Foundation for Statistical Computing; 2024.
+
+Kandel PB, Castelli M. How deeply are you cleaning your data? A look into the practice of data cleaning. IEEE Access. 2020;8:220123-43.
+
+Shapiro SS, Wilk MB. An analysis of variance test for normality (complete samples). Biometrika. 1965;52(3-4):591-611.
+
+Conover WJ. Practical nonparametric statistics. 3rd ed. New York: Wiley; 1999.
+
+Thode HC Jr. Testing for normality. New York: Marcel Dekker; 2002.
+
+Conesa A, Madrigal P, Tarazona S, et al. A survey of best practices for RNA-seq data analysis. Genome Biol. 2016;17(1):13.
+
+Mann HB, Whitney DR. On a test of whether one of two random variables is stochastically larger than the other. Ann Math Stat. 1947;18(1):50-60.
+
+Marusyk A, Polyak K. Tumor heterogeneity: causes and consequences. Biochim Biophys Acta. 2010;1805(1):105-17.
+
+
+***
+
+## Anexos
+### Anexo 1
+Código de elaboración del Histograma con curva de densidad y línea normal teórica
+```{r hist_genes_norm, fig.width=15, fig.height=15}
+hist_genes_norm <- list()
+
+for (gen in genes) {
+  
+  gen_label <- toupper(gsub("^AQ_", "", gen))
+  
+media_gen <- mean(df[[gen]], na.rm = TRUE)
+sd_gen <- sd(df[[gen]], na.rm = TRUE)
+
+hist_genes_norm[[gen]] <- ggplot(df, aes(x = .data[[gen]])) +
+  geom_histogram(aes(y = after_stat(density)),
+                 bins = 30,
+                 color = "white") +
+  geom_density(linewidth = 1) +
+  stat_function(
+    fun = dnorm,
+    args = list(mean = media_gen, sd = sd_gen),
+    linetype = "dashed",
+    linewidth = 1
+  ) +
+  labs(
+    title = gen_label,
+    subtitle = "Densidad + curva teórica",
+    x = gen_label,
+    y = "Densidad"
+  ) +
+  theme_minimal()
+}
+
+combined_plot_genes_norm <- wrap_plots(hist_genes_norm, ncol = 6)
+
+genes_norm_hist <- combined_plot_genes_norm + plot_annotation (
+  title = "Evaluación visual de normalidad de expresión génica mediante Histogramas",
+  theme = theme(
+    plot.title = element_text(hjust = 0.5))
+)
+  print(genes_norm_hist)
+
+```
+**Descripción Anexo 1**: Histogramas con curvas de densidad empíricass para los genes analizados, con superposición de curva normal teórica (línea discontinua). Se observa una distribución heterogénea en todos los genes estudiados, con presencia de asimetría, acumulación de valores y desviaciones respecto a la normalidad, hallazgos concordantes con los resultados obtenidos mediante la prueba de Shapiro-Wilk (**Tabla 1**).
+
+***
+
+### Anexo 2
+Código de elaboración de tabla de expresión génica según categorías de edad y tipo tratamiento.
+```{r tabla expresión genes en función de percentil y tratamiento o placebo gt}
+mediana_edad <- median(df$edad, na.rm = TRUE)
+
+df$Edad_cat <- ifelse(
+  df$edad < mediana_edad,
+  paste0("Edad < ", mediana_edad),
+  paste0("Edad ≥ ", mediana_edad)
+)
+
+genes_limpios <- toupper(gsub("^AQ_", "", genes))
+
+tabla_edad_tratamiento <- df %>%
+  
+  rename_with(
+    ~ toupper(gsub("^AQ_", "", .x)),
+    all_of(genes)
+  ) %>%
+  
+  select(
+    tratamiento,
+    Edad_cat,
+    all_of(genes_limpios)
+  ) %>%
+  
+  tbl_strata(
+    strata = tratamiento,
+    
+    .tbl_fun = ~ .x %>%
+      
+      tbl_summary(
+        by = Edad_cat,
+        
+        type = all_continuous() ~ "continuous",
+        
+        statistic = list(
+          all_continuous() ~ "{median} ({p25}, {p75})"
+        ),
+        
+        digits = all_continuous() ~ 2
+      ) %>%
+      
+      add_p(
+        test = all_continuous() ~ "wilcox.test",
+        pvalue_fun = ~ style_pvalue(.x, digits = 3)
+      )
+  ) %>%
+  
+  bold_labels() %>%
+  
+  modify_header(
+    label = "**Gen**",
+    p.value = "**Valor p**"
+  )
+
+tabla_edad_tratamiento_gt <- tabla_edad_tratamiento %>%
+  as_gt() %>%
+  
+  tab_header(
+    title = md("**Expresión génica según categorías de edad y tratamiento**")
+  ) %>%
+  
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) %>%
+  
+  tab_style(
+    style = cell_text(
+      weight = "bold",
+      align = "center",
+      size = px(16)
+    ),
+    locations = cells_title(groups = "title")
+  )
+
+tabla_edad_tratamiento_gt
+
+```
+**Descripción Anexo 2.** Expresión génica según categorías de edad y tratamiento. Se presentan las medianas y rangos intercuartílicos (p25–p75) de los niveles de expresión génica para cada gen evaluado, estratificados según categorías de edad definidas a partir de la mediana de la muestra (< percentil 50 y ≥ percentil 50) dentro de cada grupo de tratamiento (fármaco y placebo). Los valores p corresponden a las comparaciones realizadas mediante la prueba no paramétrica entre categorías etarias dentro de cada tratamiento.
